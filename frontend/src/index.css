@@ -1,0 +1,38 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+@layer base {
+  * {
+    border-color: #E3DCCE;
+  }
+
+  body {
+    background-color: #F4EFE6;
+    color: #1E2A26;
+    font-feature-settings: "cv02", "cv03", "cv04", "cv11";
+  }
+}
+
+@layer utilities {
+  /* Control states focus ring: 2px ochre outline with offset */
+  .focus-ochre {
+    outline: 2px solid #D4A537 !important;
+    outline-offset: 1px !important;
+  }
+  
+  .focus-ochre-within:focus-within {
+    outline: 2px solid #D4A537 !important;
+    outline-offset: 1px !important;
+  }
+
+  /* Custom subtle scrollbar */
+  .no-scrollbar::-webkit-scrollbar {
+    display: none;
+  }
+  .no-scrollbar {
+    -ms-overflow-style: none;
+    scrollbar-width: none;
+  }
+}
+

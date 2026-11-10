@@ -1,0 +1,17 @@
+# Mac
+.DS_Store
+
+# Node
+node_modules/
+dist/
+
+# Environment variables
+.env
+.env.*
+
+# Java / Maven
+target/
+
+# IDE
+.idea/
+.vscode/
