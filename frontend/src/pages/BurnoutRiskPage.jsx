@@ -1,32 +1,92 @@
-import React from 'react';
+import React, { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { Calendar, ArrowRight } from 'lucide-react';
+import { Calendar, ArrowRight, CheckCircle2 } from 'lucide-react';
 import { Button } from '../components/ui/Button';
-import { MetricCard } from '../components/ui/MetricCard';
-import { StatusBadge } from '../components/ui/StatusBadge';
+import { KpiCard } from '../components/ui/KpiCard';
+import { StatusChip } from '../components/ui/StatusChip';
 import { Avatar } from '../components/ui/Avatar';
-import { useApp } from '../context/AppContext';
-import { useModals } from '../context/ModalContext';
+import { Modal } from '../components/ui/Modal';
+import { SkeletonCard, SkeletonTable } from '../components/ui/Skeleton';
+import { ErrorState } from '../components/ui/ErrorState';
+import { useToast } from '../components/ui/Toast';
+import { ScheduleMeetingModal } from '../components/modals/ScheduleMeetingModal';
+import { burnoutService } from '../services/burnoutService';
 
 export function BurnoutRiskPage() {
   const navigate = useNavigate();
-  const { employees, interventions } = useApp();
-  const { openScheduleModal } = useModals();
+  const toast = useToast();
 
-  const atRiskPeople = employees.filter(e => e.riskScore >= 60).sort((a, b) => b.riskScore - a.riskScore);
+  const [data, setData] = useState(null);
+  const [isLoading, setIsLoading] = useState(true);
+  const [error, setError] = useState(null);
+
+  // Modal
+  const [selectedPersonFor1on1, setSelectedPersonFor1on1] = useState(null);
+  const [isScheduleOpen, setIsScheduleOpen] = useState(false);
+  const [selectedPlanPerson, setSelectedPlanPerson] = useState(null);
+
+  const loadData = async () => {
+    try {
+      setIsLoading(true);
+      setError(null);
+      const res = await burnoutService.getBurnoutRiskData();
+      setData(res);
+    } catch (err) {
+      setError(err.message || 'Failed to load burnout risk data.');
+    } finally {
+      setIsLoading(false);
+    }
+  };
+
+  useEffect(() => {
+    loadData();
+  }, []);
+
+  const handleOpen1on1 = (person) => {
+    setSelectedPersonFor1on1({
+      id: person.id,
+      name: person.name,
+      initials: person.initials,
+      role: person.role,
+    });
+    setIsScheduleOpen(true);
+  };
+
+  const handle1on1Success = () => {
+    loadData();
+  };
+
+  if (isLoading) {
+    return (
+      <div className="space-y-6">
+        <div className="h-16 bg-[#E7E1D4]/40 animate-pulse rounded-[4px]" />
+        <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
+          <SkeletonCard />
+          <SkeletonCard />
+          <SkeletonCard />
+          <SkeletonCard />
+        </div>
+        <SkeletonTable rows={4} cols={5} />
+      </div>
+    );
+  }
+
+  if (error || !data) {
+    return <ErrorState message={error} onRetry={loadData} />;
+  }
 
   return (
-    <div className="space-y-6">
+    <div className="space-y-6 select-none">
       {/* Header */}
       <div className="flex flex-col sm:flex-row sm:items-end justify-between gap-4">
         <div>
-          <div className="text-[10px] font-semibold tracking-wider text-ink-muted uppercase mb-1">
+          <div className="text-[10px] font-semibold tracking-wider text-[#6B6A60] uppercase mb-1">
             PEOPLE OPERATIONS / DESIGN TEAM
           </div>
-          <h1 className="text-3xl sm:text-4xl font-serif text-ink-primary font-normal tracking-tight">
+          <h1 className="text-3xl sm:text-4xl font-heading text-[#1E2A26] font-normal tracking-tight">
             Notice early. Respond with care.
           </h1>
-          <p className="text-xs text-ink-secondary mt-1.5">
+          <p className="text-xs text-[#6B6A60] mt-1.5">
             Work-pattern signals help you start a conversation, not make a diagnosis.
           </p>
         </div>
@@ -36,105 +96,100 @@ export function BurnoutRiskPage() {
           onClick={() => {
             const el = document.getElementById('intervention-tracker');
             if (el) el.scrollIntoView({ behavior: 'smooth' });
+            toast.info('Viewing active interventions.');
           }}
-          className="text-xs py-2.5 self-start sm:self-auto"
+          className="text-xs self-start sm:self-auto"
         >
           Review interventions
         </Button>
       </div>
 
-      {/* 4 Metric Cards */}
+      {/* 4 KPI Cards */}
       <div className="grid grid-cols-2 lg:grid-cols-4 gap-3 sm:gap-4">
-        <MetricCard
+        <KpiCard
           title="Employees at risk"
-          value="3 of 8"
-          subtext="Risk scores above 60"
-          dotColor="#C3542F"
+          value={data.kpis.employeesAtRisk.value}
+          note={data.kpis.employeesAtRisk.note}
+          dotColor="#C4613F"
         />
-        <MetricCard
+        <KpiCard
           title="Critical signals"
-          value="2"
-          subtext="Marcus and Asha score ≥80"
-          dotColor="#B93856"
+          value={data.kpis.criticalSignals.value}
+          note={data.kpis.criticalSignals.note}
+          dotColor="#7A2E3A"
         />
-        <MetricCard
+        <KpiCard
           title="Open interventions"
-          value="3"
-          subtext="2 need attention today"
+          value={data.kpis.openInterventions.value}
+          note={data.kpis.openInterventions.note}
           dotColor="#D4A537"
         />
-        <MetricCard
+        <KpiCard
           title="Team risk score"
-          value="58 / 100"
-          subtext="Elevated · +6 this week"
+          value={data.kpis.teamRiskScore.value}
+          note={data.kpis.teamRiskScore.note}
           dotColor="#D4A537"
         />
       </div>
 
-      {/* Prioritize a Conversation */}
-      <div className="bg-card rounded-xl border border-border-subtle p-5">
-        <div className="flex items-center justify-between mb-4">
-          <h2 className="text-lg font-serif text-ink-primary">
+      {/* Prioritize a conversation */}
+      <div className="bg-[#FBF8F2] border border-[#DDD4C4] rounded-[4px] p-5 shadow-card space-y-4">
+        <div className="flex items-center justify-between border-b border-[#DDD4C4] pb-3">
+          <h2 className="font-heading text-lg font-normal text-[#1E2A26]">
             Prioritize a conversation
           </h2>
-          <span className="text-xs text-ink-muted">Ranked by risk score</span>
+          <span className="text-xs text-[#6B6A60]">
+            Ranked by risk score
+          </span>
         </div>
 
-        <div className="divide-y divide-border-subtle/50">
-          {atRiskPeople.map((emp) => (
+        <div className="space-y-3">
+          {data.conversations.map((item) => (
             <div
-              key={emp.id}
-              className="py-4 first:pt-1 last:pb-1 flex flex-col md:flex-row md:items-center justify-between gap-4"
+              key={item.id}
+              className="p-4 bg-[#FBF8F2] border border-[#DDD4C4] rounded-[4px] flex flex-col md:flex-row md:items-center justify-between gap-4 hover:bg-[#F4EFE6]/60 transition-colors"
             >
-              {/* Score and Employee info */}
-              <div className="flex items-center gap-6">
-                <div className="w-16">
-                  <div className="text-3xl font-serif text-ink-primary font-normal leading-none">
-                    {emp.riskScore}
+              {/* Score + Profile + Signals */}
+              <div className="flex items-start sm:items-center gap-4 flex-1">
+                <div className="text-center shrink-0 pr-3 border-r border-[#DDD4C4]">
+                  <div className="font-heading text-3xl font-normal text-[#1E2A26]">
+                    {item.score}
                   </div>
-                  <div className="text-[10px] uppercase font-semibold text-ink-muted mt-1">
+                  <div className="text-[10px] uppercase font-semibold text-[#6B6A60]">
                     OUT OF 100
                   </div>
                 </div>
 
                 <div className="flex items-center gap-3">
-                  <Avatar
-                    initials={emp.initials}
-                    name={emp.name}
-                    bgColor={emp.avatarBg}
-                    textColor={emp.avatarText}
-                  />
+                  <Avatar initials={item.initials} name={item.name} size="md" />
                   <div>
-                    <button
-                      onClick={() => navigate(`/workload/${emp.id}`)}
-                      className="font-medium text-sm text-ink-primary hover:underline text-left block"
+                    <div
+                      onClick={() => navigate(`/team/${item.id}`)}
+                      className="text-xs md:text-sm font-medium text-[#1E2A26] hover:underline cursor-pointer"
                     >
-                      {emp.name}
-                    </button>
-                    <div className="text-xs text-ink-muted">{emp.role}</div>
+                      {item.name}
+                    </div>
+                    <div className="text-[11px] text-[#6B6A60]">
+                      {item.role}
+                    </div>
                   </div>
                 </div>
-              </div>
 
-              {/* Signals & Suggested Action */}
-              <div className="flex-1 md:px-6">
-                <div className="text-xs text-ink-muted">
-                  {emp.signals?.join(' · ') || 'Above capacity'}
-                </div>
-                <div className="text-xs font-medium text-ink-primary mt-0.5">
-                  {emp.suggestedAction}
+                <div className="hidden lg:block pl-4 text-xs border-l border-[#DDD4C4] flex-1">
+                  <div className="text-[#6B6A60]">{item.signals}</div>
+                  <div className="font-medium text-[#1E2A26] mt-0.5">{item.recommendation}</div>
                 </div>
               </div>
 
-              {/* Actions */}
-              <div className="flex items-center gap-3 shrink-0">
-                <StatusBadge status={emp.status} size="sm" />
-                {emp.id === 'asha-patel' ? (
+              {/* Status & Action */}
+              <div className="flex items-center gap-3 self-end md:self-auto shrink-0">
+                <StatusChip status={item.status} size="sm" />
+                {item.actionType === 'schedule-1-1' ? (
                   <Button
                     variant="primary"
                     size="sm"
-                    onClick={() => openScheduleModal(emp)}
-                    className="text-xs py-1.5"
+                    onClick={() => handleOpen1on1(item)}
+                    icon={Calendar}
                   >
                     Schedule 1:1
                   </Button>
@@ -142,8 +197,7 @@ export function BurnoutRiskPage() {
                   <Button
                     variant="primary"
                     size="sm"
-                    onClick={() => navigate(`/workload/${emp.id}`)}
-                    className="text-xs py-1.5"
+                    onClick={() => setSelectedPlanPerson(item)}
                   >
                     Review plan
                   </Button>
@@ -154,122 +208,162 @@ export function BurnoutRiskPage() {
         </div>
       </div>
 
-      {/* Two Column Section: Driving Risk + Care Practice */}
-      <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+      {/* Row: What's driving risk & Care is a practice */}
+      <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
         {/* What's driving risk */}
-        <div className="bg-card rounded-xl border border-border-subtle p-5 flex flex-col justify-between">
+        <div className="bg-[#FBF8F2] border border-[#DDD4C4] rounded-[4px] p-5 shadow-card flex flex-col justify-between">
           <div>
-            <h2 className="text-lg font-serif text-ink-primary mb-4">
+            <h3 className="font-heading text-base font-normal text-[#1E2A26] mb-4">
               What's driving risk
-            </h2>
-
+            </h3>
             <div className="space-y-4">
-              <div>
-                <div className="flex justify-between items-center text-xs mb-1">
-                  <span className="font-medium text-ink-primary">Sustained overtime</span>
-                  <span className="text-ink-secondary">3 of 8 people</span>
+              {data.drivers.map((driver, idx) => (
+                <div key={idx} className="space-y-1.5">
+                  <div className="flex items-center justify-between text-xs">
+                    <span className="font-medium text-[#1E2A26]">{driver.label}</span>
+                    <span className="text-[#6B6A60]">{driver.count}</span>
+                  </div>
+                  <div className="w-full h-2 bg-[#EAE4D8] rounded-[2px] overflow-hidden">
+                    <div
+                      className="h-full rounded-[2px]"
+                      style={{
+                        width: `${driver.percentage * 2}%`,
+                        backgroundColor: driver.color,
+                      }}
+                    />
+                  </div>
                 </div>
-                <div className="w-full h-2 bg-[#EAE4D8] rounded-full overflow-hidden">
-                  <div className="w-[37.5%] h-full bg-[#C3542F] rounded-full" />
-                </div>
-              </div>
-
-              <div>
-                <div className="flex justify-between items-center text-xs mb-1">
-                  <span className="font-medium text-ink-primary">Deadline compression</span>
-                  <span className="text-ink-secondary">3 of 8 people</span>
-                </div>
-                <div className="w-full h-2 bg-[#EAE4D8] rounded-full overflow-hidden">
-                  <div className="w-[37.5%] h-full bg-[#D4A537] rounded-full" />
-                </div>
-              </div>
-
-              <div>
-                <div className="flex justify-between items-center text-xs mb-1">
-                  <span className="font-medium text-ink-primary">Limited recovery time</span>
-                  <span className="text-ink-secondary">2 of 8 people</span>
-                </div>
-                <div className="w-full h-2 bg-[#EAE4D8] rounded-full overflow-hidden">
-                  <div className="w-[25%] h-full bg-[#4F7A7F] rounded-full" />
-                </div>
-              </div>
+              ))}
             </div>
           </div>
-
-          <div className="text-[11px] text-ink-muted mt-6 pt-3 border-t border-border-subtle/60">
+          <p className="text-xs text-[#6B6A60] pt-4 mt-4 border-t border-[#DDD4C4]">
             Signals may overlap. Risk uses an 8-week rolling window and is refreshed each morning.
-          </div>
+          </p>
         </div>
 
         {/* Care is a practice */}
-        <div className="bg-card rounded-xl border border-border-subtle p-5 flex flex-col justify-between">
-          <div>
-            <div className="text-xs font-semibold text-ink-muted uppercase tracking-wider mb-1">
-              CARE IS A PRACTICE
+        <div className="bg-[#FBF8F2] border border-[#DDD4C4] rounded-[4px] p-5 shadow-card flex flex-col justify-between">
+          <div className="space-y-3">
+            <div className="text-xs uppercase tracking-wider font-semibold text-[#6B6A60]">
+              Care is a practice
             </div>
-            <h3 className="text-xl font-serif text-ink-primary font-normal mb-3">
+            <h3 className="font-heading text-xl font-normal text-[#1E2A26]">
               Start with curiosity, not a score.
             </h3>
-
-            <blockquote className="text-xs italic text-ink-secondary bg-card-subtle p-3 rounded-lg border border-border-subtle/80 leading-relaxed mb-4">
+            <p className="text-xs text-[#1E2A26] italic bg-[#F4EFE6] p-3 rounded-[4px] border border-[#DDD4C4]">
               "How is the workload feeling this week? What could we change or take off your plate?"
-            </blockquote>
-
-            <ol className="text-xs text-ink-primary space-y-2 list-decimal list-inside font-medium">
+            </p>
+            <ol className="text-xs text-[#6B6A60] space-y-1.5 list-decimal pl-4">
               <li>Agree on one immediate change.</li>
               <li>Protect uninterrupted recovery time.</li>
               <li>Check back within seven days.</li>
             </ol>
           </div>
-
-          <div className="text-[11px] text-ink-muted mt-4 pt-3 border-t border-border-subtle/60">
+          <p className="text-[11px] text-[#8D8C82] pt-4 mt-4 border-t border-[#DDD4C4]">
             Only managers and workspace admins can view individual risk signals. Never use this score for performance evaluation.
-          </div>
+          </p>
         </div>
       </div>
 
-      {/* Intervention Tracker */}
-      <div id="intervention-tracker" className="bg-card rounded-xl border border-border-subtle overflow-hidden">
-        <div className="p-5 pb-3 border-b border-border-subtle flex items-center justify-between">
-          <h2 className="text-lg font-serif text-ink-primary">
+      {/* Intervention tracker */}
+      <div id="intervention-tracker" className="bg-[#FBF8F2] border border-[#DDD4C4] rounded-[4px] shadow-card overflow-hidden">
+        <div className="p-4 border-b border-[#DDD4C4] flex items-center justify-between">
+          <h2 className="font-heading text-base font-normal text-[#1E2A26]">
             Intervention tracker
           </h2>
-          <span className="text-xs text-ink-muted">This week</span>
+          <span className="text-xs text-[#6B6A60]">This week</span>
         </div>
 
-        <div className="overflow-x-auto no-scrollbar">
-          <table className="w-full text-left text-xs">
+        <div className="overflow-x-auto">
+          <table className="w-full text-left text-xs border-collapse">
             <thead>
-              <tr className="border-b border-border-subtle bg-card-subtle/40 text-[10px] uppercase tracking-wider text-ink-muted">
-                <th className="py-2.5 px-5 font-semibold">Person</th>
-                <th className="py-2.5 px-4 font-semibold">Agreed Next Step</th>
-                <th className="py-2.5 px-4 font-semibold">Owner</th>
-                <th className="py-2.5 px-4 font-semibold">Due</th>
-                <th className="py-2.5 px-5 font-semibold">State</th>
+              <tr className="border-b border-[#DDD4C4] bg-[#F7F3EB]/60 text-[11px] uppercase tracking-wider text-[#6B6A60]">
+                <th className="py-2.5 px-4 font-semibold">PERSON</th>
+                <th className="py-2.5 px-4 font-semibold">AGREED NEXT STEP</th>
+                <th className="py-2.5 px-4 font-semibold">OWNER</th>
+                <th className="py-2.5 px-4 font-semibold">DUE</th>
+                <th className="py-2.5 px-4 font-semibold">STATE</th>
               </tr>
             </thead>
-            <tbody className="divide-y divide-border-subtle/50">
-              {interventions.map((item) => (
-                <tr key={item.id} className="hover:bg-card-subtle/40 transition-colors">
-                  <td className="py-3 px-5 font-medium text-ink-primary">
-                    <button
-                      onClick={() => navigate(`/workload/${item.personId}`)}
-                      className="hover:underline text-left"
-                    >
-                      {item.person}
-                    </button>
+            <tbody className="divide-y divide-[#DDD4C4]/50">
+              {data.interventions.map((row) => (
+                <tr
+                  key={row.id}
+                  onClick={() => navigate(`/team/${row.personId}`)}
+                  className="cursor-pointer hover:bg-[#F4EFE6]/60 transition-colors group"
+                >
+                  <td className="py-3 px-4 font-medium text-[#1E2A26] group-hover:text-[#234236] group-hover:underline">
+                    {row.person}
                   </td>
-                  <td className="py-3 px-4 text-ink-secondary">{item.agreedStep}</td>
-                  <td className="py-3 px-4 text-ink-muted">{item.owner}</td>
-                  <td className="py-3 px-4 text-ink-secondary">{item.due}</td>
-                  <td className="py-3 px-5 text-brand-800 font-medium">{item.state}</td>
+                  <td className="py-3 px-4 text-[#1E2A26]">
+                    {row.agreedStep}
+                  </td>
+                  <td className="py-3 px-4 text-[#6B6A60]">
+                    {row.owner}
+                  </td>
+                  <td className="py-3 px-4 text-[#6B6A60]">
+                    {row.due}
+                  </td>
+                  <td className="py-3 px-4 whitespace-nowrap">
+                    <span
+                      className={`inline-flex items-center px-2 py-0.5 rounded-[2px] text-[11px] font-medium border ${
+                        row.state === 'Scheduled' || row.state === 'Completed'
+                          ? 'bg-[#EAF0E9] text-[#375734] border-[#CCE0CB]'
+                          : 'bg-[#FAF3E1] text-[#7B5E1A] border-[#EBDCBA]'
+                      }`}
+                    >
+                      {row.state}
+                    </span>
+                  </td>
                 </tr>
               ))}
             </tbody>
           </table>
         </div>
       </div>
+
+      {/* Schedule 1:1 Modal */}
+      <ScheduleMeetingModal
+        isOpen={isScheduleOpen}
+        onClose={() => setIsScheduleOpen(false)}
+        employee={selectedPersonFor1on1 || undefined}
+        onSuccess={handle1on1Success}
+      />
+
+      {/* Plan Review Modal */}
+      <Modal
+        isOpen={!!selectedPlanPerson}
+        onClose={() => setSelectedPlanPerson(null)}
+        title={`Workload Plan · ${selectedPlanPerson?.name}`}
+        subtitle="Review action items and mitigation recommendations."
+        footer={
+          <div className="flex gap-2">
+            <Button variant="secondary" onClick={() => setSelectedPlanPerson(null)}>
+              Close
+            </Button>
+            <Button
+              variant="primary"
+              onClick={() => {
+                navigate(`/team/${selectedPlanPerson?.id}`);
+              }}
+            >
+              Open employee detail
+            </Button>
+          </div>
+        }
+      >
+        <div className="space-y-3 text-xs md:text-sm text-[#1E2A26]">
+          <div className="p-3 bg-[#F4EFE6] rounded-[4px] border border-[#DDD4C4]">
+            <div className="font-semibold text-[#1E2A26] mb-1">Recommended Action:</div>
+            <div>{selectedPlanPerson?.recommendation}</div>
+          </div>
+          <p className="text-xs text-[#6B6A60] leading-relaxed">
+            Sustained high utilization detected across previous sprint cycles. Consider redistributing pending backlog items in Task Rebalancer.
+          </p>
+        </div>
+      </Modal>
     </div>
   );
 }
 
+export default BurnoutRiskPage;

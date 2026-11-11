@@ -1,166 +1,218 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
-import { Calendar, ArrowLeftRight, Plus, AlertCircle, ArrowLeft } from 'lucide-react';
+import { ArrowLeft, ArrowLeftRight, Calendar, Plus, AlertCircle } from 'lucide-react';
 import { Button } from '../components/ui/Button';
-import { StatusBadge } from '../components/ui/StatusBadge';
+import { StatusChip } from '../components/ui/StatusChip';
 import { Avatar } from '../components/ui/Avatar';
-import { MetricCard } from '../components/ui/MetricCard';
-import { useApp } from '../context/AppContext';
-import { useModals } from '../context/ModalContext';
+import { KpiCard } from '../components/ui/KpiCard';
+import { Modal } from '../components/ui/Modal';
+import { SkeletonCard, SkeletonTable } from '../components/ui/Skeleton';
+import { ErrorState } from '../components/ui/ErrorState';
+import { useToast } from '../components/ui/Toast';
+import { ReassignTaskModal } from '../components/modals/ReassignTaskModal';
+import { ScheduleMeetingModal } from '../components/modals/ScheduleMeetingModal';
+import { employeeService } from '../services/employeeService';
+import { getHeatmapColor } from '../utils/workload';
 
 export function EmployeeDetailPage() {
   const { id = 'asha-patel' } = useParams();
   const navigate = useNavigate();
-  const { employees, tasks, addManagerNote } = useApp();
-  const { openReassignModal, openScheduleModal } = useModals();
+  const toast = useToast();
 
-  const employee = employees.find(e => e.id === id) || employees[1]; // default to Asha Patel
-  const employeeTasks = tasks.filter(t => t.assigneeId === employee.id);
+  const [employee, setEmployee] = useState(null);
+  const [isLoading, setIsLoading] = useState(true);
+  const [error, setError] = useState(null);
 
-  const [isAddingNote, setIsAddingNote] = useState(false);
-  const [newNote, setNewNote] = useState('');
+  // Modals state
+  const [isReassignOpen, setIsReassignOpen] = useState(false);
+  const [isScheduleOpen, setIsScheduleOpen] = useState(false);
+  const [isAddNoteOpen, setIsAddNoteOpen] = useState(false);
+  const [selectedTask, setSelectedTask] = useState(null);
+  const [newNoteText, setNewNoteText] = useState('');
 
-  const handleSaveNote = () => {
-    if (newNote.trim()) {
-      addManagerNote(employee.id, newNote);
-      setNewNote('');
-      setIsAddingNote(false);
+  const loadEmployee = async () => {
+    try {
+      setIsLoading(true);
+      setError(null);
+      const res = await employeeService.getEmployeeById(id);
+      setEmployee(res);
+    } catch (err) {
+      setError(err.message || 'Failed to load employee details.');
+    } finally {
+      setIsLoading(false);
     }
   };
+
+  useEffect(() => {
+    loadEmployee();
+  }, [id]);
+
+  const handleSaveNote = async () => {
+    if (!newNoteText.trim()) return;
+    try {
+      await employeeService.addManagerNote(employee.id, newNoteText);
+      toast.success('Manager note added.');
+      setNewNoteText('');
+      setIsAddNoteOpen(false);
+      loadEmployee();
+    } catch (err) {
+      toast.error('Failed to save note.');
+    }
+  };
+
+  if (isLoading) {
+    return (
+      <div className="space-y-6">
+        <div className="h-16 bg-[#E7E1D4]/40 animate-pulse rounded-[4px]" />
+        <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
+          <SkeletonCard />
+          <SkeletonCard />
+          <SkeletonCard />
+          <SkeletonCard />
+        </div>
+        <SkeletonTable rows={6} cols={4} />
+      </div>
+    );
+  }
+
+  if (error || !employee) {
+    return <ErrorState message={error} onRetry={loadEmployee} />;
+  }
 
   const weeklyHistory = employee.weeklyAllocation || [34, 36, 38, 40, 44, 46, 50, 48];
   const weekLabels = ['14 Sep', '21 Sep', '28 Sep', '5 Oct', '12 Oct', '19 Oct', '26 Oct', '2 Nov'];
   const overtimeHistory = employee.overtimeHistory || [0, 0, 0, 0, 4, 6, 10, 8];
 
-  const getBarColor = (val) => {
-    if (val < 32) return '#4F7A7F'; // spare
-    if (val <= 40) return '#659670'; // balanced
-    if (val <= 44) return '#D4A537'; // stretched
-    if (val <= 50) return '#C3542F'; // overloaded
-    return '#B93856'; // critical
-  };
-
   return (
-    <div className="space-y-6">
-      {/* Top back button + Header */}
+    <div className="space-y-6 select-none">
+      {/* Top Breadcrumb & Header */}
       <div className="flex flex-col sm:flex-row sm:items-end justify-between gap-4">
         <div>
           <button
-            onClick={() => navigate('/workload')}
-            className="flex items-center gap-1.5 text-xs text-ink-muted hover:text-ink-primary mb-2 transition-colors"
+            type="button"
+            onClick={() => navigate('/team')}
+            className="flex items-center gap-1.5 text-xs text-[#6B6A60] hover:text-[#1E2A26] mb-2 transition-colors"
           >
             <ArrowLeft className="w-3.5 h-3.5" />
             <span>Back to team workload</span>
           </button>
-          <div className="text-[10px] font-semibold tracking-wider text-ink-muted uppercase mb-1">
+          <div className="text-[10px] font-semibold tracking-wider text-[#6B6A60] uppercase mb-1">
             PEOPLE OPERATIONS / DESIGN TEAM
           </div>
-          <h1 className="text-3xl sm:text-4xl font-serif text-ink-primary font-normal tracking-tight">
+          <h1 className="text-3xl sm:text-4xl font-heading text-[#1E2A26] font-normal tracking-tight">
             {employee.name}
           </h1>
-          <p className="text-xs text-ink-secondary mt-1">
+          <p className="text-xs text-[#6B6A60] mt-1">
             People / {employee.name} · Week of 2–8 November 2026
           </p>
         </div>
 
+        {/* Action Buttons */}
         <div className="flex items-center gap-2.5">
           <Button
             variant="secondary"
-            onClick={() => openReassignModal(employeeTasks[1] || employeeTasks[0])}
-            className="gap-2 text-xs py-2"
+            onClick={() => {
+              setSelectedTask(employee.tasks?.[1] || employee.tasks?.[0]);
+              setIsReassignOpen(true);
+            }}
+            className="gap-1.5 text-xs"
+            icon={ArrowLeftRight}
           >
-            <ArrowLeftRight className="w-4 h-4 text-ink-muted" />
-            <span>Reassign task</span>
+            Reassign task
           </Button>
           <Button
             variant="primary"
-            onClick={() => openScheduleModal(employee)}
-            className="gap-2 text-xs py-2"
+            onClick={() => setIsScheduleOpen(true)}
+            className="gap-1.5 text-xs"
+            icon={Calendar}
           >
-            <Calendar className="w-4 h-4" />
-            <span>Schedule 1:1</span>
+            Schedule 1:1
           </Button>
         </div>
       </div>
 
-      {/* Employee Identity Card */}
-      <div className="p-4 bg-card rounded-xl border border-border-subtle flex flex-col sm:flex-row sm:items-center justify-between gap-4">
-        <div className="flex items-center gap-3.5">
+      {/* Profile Bar */}
+      <div className="p-4 bg-[#FBF8F2] border border-[#DDD4C4] rounded-[4px] shadow-card flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3">
+        <div className="flex items-center gap-3">
           <Avatar
             initials={employee.initials}
             name={employee.name}
             size="lg"
-            bgColor={employee.avatarBg}
-            textColor={employee.avatarText}
+            bgColor="#F8ECE7"
+            textColor="#873B21"
           />
           <div>
-            <div className="text-base font-medium text-ink-primary">{employee.name}</div>
-            <div className="text-xs text-ink-secondary">
-              {employee.role} · {employee.department} · Reports to {employee.reportsTo}
+            <div className="flex items-center gap-2.5">
+              <span className="font-heading text-lg font-normal text-[#1E2A26]">
+                {employee.name}
+              </span>
+              <StatusChip status={employee.status} size="sm" />
+            </div>
+            <div className="text-xs text-[#6B6A60] mt-0.5">
+              {employee.role} · {employee.department || 'Design'} · Reports to {employee.reportsTo || 'Emma Chen'}
             </div>
           </div>
         </div>
 
-        <div className="flex items-center gap-3">
-          <StatusBadge status={employee.status} />
-          <span className="text-xs text-ink-muted font-mono">{employee.email}</span>
+        <div className="text-xs text-[#6B6A60] font-mono">
+          {employee.email}
         </div>
       </div>
 
-      {/* KPI Cards */}
+      {/* 4 KPI Cards */}
       <div className="grid grid-cols-2 lg:grid-cols-4 gap-3 sm:gap-4">
-        <MetricCard
+        <KpiCard
           title="This week"
-          value={`${employee.allocatedHours} hrs`}
-          subtext={`${Math.round((employee.allocatedHours / employee.contractedHours) * 100)}% of 40 hr capacity`}
-          dotColor="#C3542F"
+          value={`${employee.allocatedHours || 48} hrs`}
+          note={`120% of ${employee.contractedHours || 40} hr capacity`}
+          dotColor="#C4613F"
         />
-        <MetricCard
+        <KpiCard
           title="Burnout risk"
-          value={`${employee.riskScore} / 100`}
-          subtext="Critical · +8 this week"
-          dotColor="#B93856"
+          value={`${employee.riskScore || 82} / 100`}
+          note="Critical · +8 this week"
+          dotColor="#7A2E3A"
         />
-        <MetricCard
+        <KpiCard
           title="Overtime"
-          value={`${Math.max(0, employee.allocatedHours - employee.contractedHours)} hrs`}
-          subtext="3 consecutive weeks ≥6 hrs"
-          dotColor="#C3542F"
+          value="8 hrs"
+          note="3 consecutive weeks ≥6 hrs"
+          dotColor="#C4613F"
         />
-        <MetricCard
+        <KpiCard
           title="Next planned leave"
           value="16 Nov"
-          subtext="2 days · approved"
-          dotColor="#1E2A26"
+          note="2 days · approved"
+          dotColor="#7E9C7A"
         />
       </div>
 
-      {/* Two-Column Detail Grid */}
+      {/* Row: Eight weeks of workload + Burnout indicators */}
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
-        {/* Left Column (2 Cols) */}
-        <div className="lg:col-span-2 space-y-6">
-          {/* Eight Weeks of Workload */}
-          <div className="bg-card rounded-xl border border-border-subtle p-5">
+        {/* Eight Weeks Workload Bar Chart */}
+        <div className="lg:col-span-2 bg-[#FBF8F2] border border-[#DDD4C4] rounded-[4px] p-5 shadow-card flex flex-col justify-between">
+          <div>
             <div className="flex items-center justify-between mb-4">
-              <h2 className="text-lg font-serif text-ink-primary">
+              <h2 className="font-heading text-lg font-normal text-[#1E2A26]">
                 Eight weeks of workload
               </h2>
-              <span className="text-xs text-ink-muted">Allocated hours</span>
+              <span className="text-xs text-[#6B6A60]">Allocated hours</span>
             </div>
 
-            <div className="h-44 flex items-end justify-between gap-2 pt-4 pb-2 border-b border-border-subtle">
-              {weeklyHistory.map((val, idx) => {
-                const heightPct = Math.round((val / 60) * 100);
+            <div className="flex items-end justify-between gap-2 h-44 pt-4 pb-2 border-b border-[#DDD4C4]">
+              {weeklyHistory.map((hrs, idx) => {
+                const cellInfo = getHeatmapColor(hrs, 40);
+                const barHeight = Math.round((hrs / 60) * 100);
                 return (
                   <div key={idx} className="flex-1 flex flex-col items-center justify-end h-full">
-                    <span className="text-[11px] font-sans text-ink-primary font-medium mb-1">
-                      {val}h
+                    <span className="text-[11px] font-sans text-[#1E2A26] font-medium mb-1">
+                      {hrs}h
                     </span>
                     <div
-                      className="w-full max-w-[42px] rounded-t-sm transition-all duration-300"
+                      className="w-full max-w-[38px] rounded-t-[2px] transition-all duration-300"
                       style={{
-                        height: `${heightPct}%`,
-                        backgroundColor: getBarColor(val),
+                        height: `${barHeight}%`,
+                        backgroundColor: cellInfo.dotColor,
                       }}
                     />
                   </div>
@@ -168,214 +220,211 @@ export function EmployeeDetailPage() {
               })}
             </div>
 
-            <div className="flex justify-between items-center text-[11px] text-ink-muted pt-2">
+            <div className="flex justify-between items-center text-[11px] text-[#6B6A60] pt-2">
               {weekLabels.map((lbl, idx) => (
                 <span key={idx} className="flex-1 text-center truncate">
                   {lbl}
                 </span>
               ))}
             </div>
+          </div>
 
-            <div className="text-xs text-ink-muted mt-3 pt-2 border-t border-border-subtle/60">
-              40 hrs contracted weekly · Above capacity for 4 weeks
+          <p className="text-xs text-[#6B6A60] pt-3 border-t border-[#DDD4C4] mt-2">
+            40 hrs contracted weekly · Above capacity for 4 weeks
+          </p>
+        </div>
+
+        {/* Burnout Indicators Card */}
+        <div className="bg-[#FBF8F2] border border-[#DDD4C4] rounded-[4px] p-5 shadow-card flex flex-col justify-between">
+          <div>
+            <h2 className="font-heading text-lg font-normal text-[#1E2A26] mb-3">
+              Burnout indicators
+            </h2>
+
+            <div className="flex items-center justify-between pb-4 border-b border-[#DDD4C4]">
+              <span className="text-3xl font-heading text-[#1E2A26] font-normal">
+                {employee.riskScore || 82} / 100
+              </span>
+              <StatusChip status="critical" size="sm" />
+            </div>
+
+            <div className="py-4 space-y-3 text-xs">
+              <div className="flex items-center justify-between">
+                <span className="text-[#6B6A60]">Sustained overtime</span>
+                <span className="font-semibold text-[#1E2A26]">High</span>
+              </div>
+              <div className="flex items-center justify-between">
+                <span className="text-[#6B6A60]">Deadline pressure</span>
+                <span className="font-semibold text-[#1E2A26]">High</span>
+              </div>
+              <div className="flex items-center justify-between">
+                <span className="text-[#6B6A60]">Recovery time</span>
+                <span className="font-semibold text-[#1E2A26]">Low</span>
+              </div>
             </div>
           </div>
 
-          {/* Current Tasks */}
-          <div className="bg-card rounded-xl border border-border-subtle p-5">
-            <div className="flex items-center justify-between mb-4">
-              <h2 className="text-lg font-serif text-ink-primary">
+          <p className="text-[11px] text-[#8D8C82] pt-3 border-t border-[#DDD4C4]">
+            Signals from work patterns, not a health diagnosis.
+          </p>
+        </div>
+      </div>
+
+      {/* Row: Current tasks (2/3) + Notes & Leave (1/3) */}
+      <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
+        {/* Current Tasks Table */}
+        <div className="lg:col-span-2 bg-[#FBF8F2] border border-[#DDD4C4] rounded-[4px] shadow-card overflow-hidden flex flex-col justify-between">
+          <div>
+            <div className="p-4 border-b border-[#DDD4C4] flex items-center justify-between">
+              <h2 className="font-heading text-base font-normal text-[#1E2A26]">
                 Current tasks
               </h2>
-              <span className="text-xs text-ink-muted">
-                {employeeTasks.length} tasks · {employee.allocatedHours} hrs
+              <span className="text-xs text-[#6B6A60]">
+                {employee.tasks?.length || 7} tasks · {employee.allocatedHours || 48} hrs
               </span>
             </div>
 
-            <div className="overflow-x-auto no-scrollbar">
-              <table className="w-full text-xs text-left">
+            <div className="overflow-x-auto">
+              <table className="w-full text-left text-xs border-collapse">
                 <thead>
-                  <tr className="border-b border-border-subtle text-[10px] uppercase tracking-wider text-ink-muted">
-                    <th className="py-2.5 font-semibold">Task / Project</th>
-                    <th className="py-2.5 px-3 font-semibold text-right">Hours</th>
-                    <th className="py-2.5 px-3 font-semibold text-center">Due</th>
-                    <th className="py-2.5 pl-3 font-semibold text-right">Status</th>
+                  <tr className="border-b border-[#DDD4C4] bg-[#F7F3EB]/60 text-[11px] uppercase tracking-wider text-[#6B6A60]">
+                    <th className="py-2.5 px-4 font-semibold">TASK / PROJECT</th>
+                    <th className="py-2.5 px-4 font-semibold">HOURS</th>
+                    <th className="py-2.5 px-4 font-semibold">DUE</th>
+                    <th className="py-2.5 px-4 font-semibold">STATUS</th>
                   </tr>
                 </thead>
-                <tbody className="divide-y divide-border-subtle/50">
-                  {employeeTasks.map((t) => (
-                    <tr key={t.id} className="hover:bg-card-subtle/50 transition-colors">
-                      <td className="py-3">
-                        <div className="font-medium text-ink-primary text-sm">{t.title}</div>
-                        <div className="text-[11px] text-ink-muted">{t.project}</div>
-                      </td>
-                      <td className="py-3 px-3 text-right font-mono text-ink-primary">
-                        {t.hours}h
-                      </td>
-                      <td className="py-3 px-3 text-center text-ink-secondary">
-                        {t.due}
-                      </td>
-                      <td className="py-3 pl-3 text-right">
-                        {t.status === 'Overdue' ? (
-                          <span className="inline-flex items-center gap-1 text-xs text-red-700 font-medium">
-                            <AlertCircle className="w-3.5 h-3.5" />
-                            <span>! Overdue</span>
-                          </span>
-                        ) : (
-                          <span className="text-xs text-ink-secondary">
-                            {t.status}
-                          </span>
-                        )}
-                      </td>
-                    </tr>
-                  ))}
+                <tbody className="divide-y divide-[#DDD4C4]/50">
+                  {employee.tasks?.map((task) => {
+                    const isOverdue = task.status === 'Overdue';
+                    return (
+                      <tr
+                        key={task.id}
+                        onClick={() => {
+                          setSelectedTask(task);
+                          setIsReassignOpen(true);
+                        }}
+                        className="cursor-pointer hover:bg-[#F4EFE6]/60 transition-colors group"
+                      >
+                        <td className="py-3 px-4">
+                          <div className="font-medium text-[#1E2A26] group-hover:text-[#234236]">
+                            {task.title}
+                          </div>
+                          <div className="text-[11px] text-[#6B6A60]">
+                            {task.project}
+                          </div>
+                        </td>
+                        <td className="py-3 px-4 whitespace-nowrap font-medium text-[#1E2A26]">
+                          {task.hours}h
+                        </td>
+                        <td className="py-3 px-4 whitespace-nowrap text-[#6B6A60]">
+                          {task.due}
+                        </td>
+                        <td className="py-3 px-4 whitespace-nowrap">
+                          {isOverdue ? (
+                            <span className="inline-flex items-center gap-1 font-semibold text-[#C4613F]">
+                              <AlertCircle className="w-3.5 h-3.5" />
+                              <span>! Overdue</span>
+                            </span>
+                          ) : (
+                            <span className="text-[#6B6A60] font-medium">
+                              {task.status}
+                            </span>
+                          )}
+                        </td>
+                      </tr>
+                    );
+                  })}
                 </tbody>
               </table>
             </div>
           </div>
         </div>
 
-        {/* Right Column (1 Col) */}
+        {/* Right column: Manager Notes & Leave History */}
         <div className="space-y-6">
-          {/* Burnout Indicators */}
-          <div className="bg-card rounded-xl border border-border-subtle p-5">
-            <h2 className="text-lg font-serif text-ink-primary mb-3">
-              Burnout indicators
-            </h2>
-            <div className="flex items-center justify-between mb-4">
-              <div className="text-3xl font-serif text-ink-primary">
-                {employee.riskScore} / 100
-              </div>
-              <StatusBadge status={employee.status} size="sm" />
-            </div>
-
-            <div className="space-y-2.5 text-xs border-t border-border-subtle pt-3">
-              <div className="flex justify-between items-center">
-                <span className="text-ink-secondary">Sustained overtime</span>
-                <span className="font-medium text-red-700">High</span>
-              </div>
-              <div className="flex justify-between items-center">
-                <span className="text-ink-secondary">Deadline pressure</span>
-                <span className="font-medium text-red-700">High</span>
-              </div>
-              <div className="flex justify-between items-center">
-                <span className="text-ink-secondary">Recovery time</span>
-                <span className="font-medium text-amber-700">Low</span>
-              </div>
-            </div>
-
-            <div className="text-[11px] text-ink-muted mt-4 pt-2 border-t border-border-subtle/60">
-              Signals from work patterns, not a health diagnosis.
-            </div>
-          </div>
-
           {/* Manager Notes */}
-          <div className="bg-card rounded-xl border border-border-subtle p-5">
-            <div className="flex items-center justify-between mb-3">
-              <h2 className="text-lg font-serif text-ink-primary">
+          <div className="p-5 bg-[#FBF8F2] border border-[#DDD4C4] rounded-[4px] shadow-card space-y-3">
+            <div className="flex items-center justify-between">
+              <h3 className="font-heading text-base font-normal text-[#1E2A26]">
                 Manager notes
-              </h2>
-              <span className="text-xs text-ink-muted">Private</span>
+              </h3>
+              <span className="text-[11px] uppercase tracking-wider text-[#6B6A60]">Private</span>
             </div>
 
-            {employee.managerNotes && (
-              <blockquote className="text-xs text-ink-primary italic bg-card-subtle p-3 rounded-lg border border-border-subtle/80 leading-relaxed">
-                "{employee.managerNotes}"
-                <div className="not-italic text-[11px] text-ink-muted mt-2 font-normal font-sans">
-                  Emma Chen · {employee.managerNoteDate || '4 Nov, 15:30'}
-                </div>
-              </blockquote>
-            )}
+            <p className="text-xs text-[#1E2A26] italic leading-relaxed bg-[#F4EFE6] p-3 rounded-[4px] border border-[#DDD4C4]">
+              "{employee.managerNotes || 'Asha is carrying both discovery and delivery for Atlas. Protect focus time and move synthesis support before Friday.'}"
+            </p>
 
-            {isAddingNote ? (
-              <div className="mt-3 space-y-2">
-                <textarea
-                  value={newNote}
-                  onChange={(e) => setNewNote(e.target.value)}
-                  placeholder="Add a private manager note..."
-                  rows={3}
-                  className="w-full text-xs p-2 bg-[#FBF8F2] border border-[#DFD8CB] rounded focus-visible:focus-ochre font-sans"
-                />
-                <div className="flex justify-end gap-2">
-                  <Button variant="secondary" size="sm" onClick={() => setIsAddingNote(false)}>
-                    Cancel
-                  </Button>
-                  <Button variant="primary" size="sm" onClick={handleSaveNote}>
-                    Save note
-                  </Button>
-                </div>
-              </div>
-            ) : (
-              <Button
-                variant="secondary"
-                size="sm"
-                onClick={() => setIsAddingNote(true)}
-                className="mt-3 w-full gap-1.5 text-xs py-1.5 bg-card-subtle"
-              >
-                <Plus className="w-3.5 h-3.5 text-ink-muted" />
-                <span>Add note</span>
-              </Button>
-            )}
+            <div className="text-[11px] text-[#6B6A60]">
+              Emma Chen · {employee.managerNoteDate || '4 Nov, 15:30'}
+            </div>
+
+            <Button
+              variant="secondary"
+              size="sm"
+              onClick={() => setIsAddNoteOpen(true)}
+              className="w-full gap-1.5 text-xs"
+              icon={Plus}
+            >
+              Add note
+            </Button>
           </div>
 
           {/* Leave History */}
-          <div className="bg-card rounded-xl border border-border-subtle p-5">
-            <h2 className="text-lg font-serif text-ink-primary mb-3">
+          <div className="p-5 bg-[#FBF8F2] border border-[#DDD4C4] rounded-[4px] shadow-card space-y-3">
+            <h3 className="font-heading text-base font-normal text-[#1E2A26]">
               Leave history
-            </h2>
+            </h3>
 
-            <div className="space-y-3 text-xs">
-              <div className="flex justify-between items-center pb-2 border-b border-border-subtle/60">
-                <div>
-                  <div className="font-medium text-ink-primary">16–17 Nov · Annual leave</div>
-                </div>
-                <span className="text-brand-800 font-medium">Approved</span>
+            <div className="space-y-2.5 text-xs">
+              <div className="flex items-center justify-between pb-2 border-b border-[#DDD4C4]/50">
+                <span className="text-[#1E2A26]">16–17 Nov · Annual leave</span>
+                <span className="text-[#7E9C7A] font-medium">Approved</span>
               </div>
-              <div className="flex justify-between items-center pb-2 border-b border-border-subtle/60">
-                <div className="text-ink-secondary">7 Aug · Annual leave · 1 day</div>
+              <div className="flex items-center justify-between pb-2 border-b border-[#DDD4C4]/50 text-[#6B6A60]">
+                <span>7 Aug · Annual leave · 1 day</span>
               </div>
-              <div className="flex justify-between items-center">
-                <div className="text-ink-secondary">15–19 Jun · Annual leave · 5 days</div>
+              <div className="flex items-center justify-between pb-2 border-b border-[#DDD4C4]/50 text-[#6B6A60]">
+                <span>15–19 Jun · Annual leave · 5 days</span>
               </div>
             </div>
 
-            <div className="text-[11px] text-ink-muted mt-4 pt-2 border-t border-border-subtle/60">
+            <p className="text-xs text-[#6B6A60] pt-1">
               90 days since the last full day off
-            </div>
+            </p>
           </div>
         </div>
       </div>
 
-      {/* Bottom Full-Width Card: Overtime History */}
-      <div className="bg-card rounded-xl border border-border-subtle p-5">
-        <div className="flex items-center justify-between mb-4">
-          <h2 className="text-lg font-serif text-ink-primary">
+      {/* Overtime History Bar Chart */}
+      <div className="bg-[#FBF8F2] border border-[#DDD4C4] rounded-[4px] p-5 shadow-card">
+        <div className="flex items-center justify-between mb-2">
+          <h2 className="font-heading text-base font-normal text-[#1E2A26]">
             Overtime history
           </h2>
-          <span className="text-xs text-ink-muted">Hours above weekly capacity</span>
+          <span className="text-xs text-[#6B6A60]">Hours above weekly capacity</span>
         </div>
-
-        <div className="h-32 flex items-end justify-between gap-2 pt-2 pb-2 border-b border-border-subtle">
-          {overtimeHistory.map((val, idx) => {
-            const heightPct = val === 0 ? 3 : Math.round((val / 15) * 100);
+        <div className="flex items-end justify-between gap-2 h-32 pt-4 pb-2 border-b border-[#DDD4C4]">
+          {overtimeHistory.map((hrs, idx) => {
+            const barHeight = hrs === 0 ? 3 : Math.round((hrs / 12) * 100);
             return (
               <div key={idx} className="flex-1 flex flex-col items-center justify-end h-full">
-                <span className="text-[11px] font-sans text-ink-primary font-medium mb-1">
-                  {val}
+                <span className="text-[11px] font-sans text-[#1E2A26] font-medium mb-1">
+                  {hrs}
                 </span>
                 <div
-                  className="w-full max-w-[42px] rounded-t-sm transition-all duration-300"
+                  className="w-full max-w-[34px] rounded-t-[2px] transition-all duration-300"
                   style={{
-                    height: `${heightPct}%`,
-                    backgroundColor: val === 0 ? '#C2BAB0' : '#C3542F',
+                    height: `${barHeight}%`,
+                    backgroundColor: hrs === 0 ? '#DDD4C4' : '#C4613F',
                   }}
                 />
               </div>
             );
           })}
         </div>
-
-        <div className="flex justify-between items-center text-[11px] text-ink-muted pt-2">
+        <div className="flex justify-between items-center text-[11px] text-[#6B6A60] pt-2">
           {weekLabels.map((lbl, idx) => (
             <span key={idx} className="flex-1 text-center truncate">
               {lbl}
@@ -383,7 +432,52 @@ export function EmployeeDetailPage() {
           ))}
         </div>
       </div>
+
+      {/* Modals */}
+      <ReassignTaskModal
+        isOpen={isReassignOpen}
+        onClose={() => setIsReassignOpen(false)}
+        task={selectedTask || undefined}
+        onSuccess={loadEmployee}
+      />
+
+      <ScheduleMeetingModal
+        isOpen={isScheduleOpen}
+        onClose={() => setIsScheduleOpen(false)}
+        employee={employee}
+        onSuccess={loadEmployee}
+      />
+
+      {/* Add Note Modal */}
+      <Modal
+        isOpen={isAddNoteOpen}
+        onClose={() => setIsAddNoteOpen(false)}
+        title="Add private manager note"
+        subtitle={`Visible only to authorized managers for ${employee.name}.`}
+        footer={
+          <div className="flex gap-2">
+            <Button variant="secondary" onClick={() => setIsAddNoteOpen(false)}>
+              Cancel
+            </Button>
+            <Button variant="primary" onClick={handleSaveNote}>
+              Save note
+            </Button>
+          </div>
+        }
+      >
+        <div className="space-y-3">
+          <label className="block text-xs font-medium text-[#6B6A60]">Note content</label>
+          <textarea
+            rows={4}
+            value={newNoteText}
+            onChange={(e) => setNewNoteText(e.target.value)}
+            placeholder="Write observations about focus, workload distribution, or recovery needs..."
+            className="w-full bg-[#FBF8F2] border border-[#DDD4C4] rounded-[4px] p-3 text-sm text-[#1E2A26] focus:outline-none focus:ring-2 focus:ring-[#B8862F] leading-relaxed resize-none"
+          />
+        </div>
+      </Modal>
     </div>
   );
 }
 
+export default EmployeeDetailPage;

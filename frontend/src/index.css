@@ -2,27 +2,41 @@
 @tailwind components;
 @tailwind utilities;
 
+:root {
+  --color-bone: #F4EFE6;
+  --color-surface: #FBF8F2;
+  --color-border: #DDD4C4;
+  --color-ink: #1E2A26;
+  --color-secondary: #6B6A60;
+  --color-forest: #234236;
+  --color-ochre: #B8862F;
+  --status-sage: #7E9C7A;
+  --status-ochre: #D4A537;
+  --status-terracotta: #C4613F;
+  --status-oxblood: #7A2E3A;
+  --status-teal: #4F7A7F;
+  --radius: 4px;
+}
+
 @layer base {
   * {
-    border-color: #E3DCCE;
+    border-color: #DDD4C4;
   }
 
   body {
     background-color: #F4EFE6;
     color: #1E2A26;
-    font-feature-settings: "cv02", "cv03", "cv04", "cv11";
+    font-family: 'Instrument Sans', sans-serif;
+  }
+
+  h1, h2, h3, .font-heading {
+    font-family: 'Fraunces', serif;
   }
 }
 
 @layer utilities {
-  /* Control states focus ring: 2px ochre outline with offset */
-  .focus-ochre {
-    outline: 2px solid #D4A537 !important;
-    outline-offset: 1px !important;
-  }
-  
-  .focus-ochre-within:focus-within {
-    outline: 2px solid #D4A537 !important;
+  .focus-ring {
+    outline: 2px solid #B8862F !important;
     outline-offset: 1px !important;
   }
 
@@ -36,3 +50,18 @@
   }
 }
 
+/* Print styles for Reports PDF export */
+@media print {
+  body {
+    background-color: #FFFFFF !important;
+    color: #000000 !important;
+  }
+  aside, header, nav, .no-print {
+    display: none !important;
+  }
+  main {
+    margin: 0 !important;
+    padding: 20px !important;
+    width: 100% !important;
+  }
+}

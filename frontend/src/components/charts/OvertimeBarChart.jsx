@@ -1,5 +1,4 @@
 import React from 'react';
-import { cn } from '../../lib/utils';
 
 export function OvertimeBarChart({
   data = [
@@ -13,31 +12,31 @@ export function OvertimeBarChart({
     { label: 'Nov 2', value: 24 },
   ],
   maxVal = 30,
-  barColor = '#C3542F',
-  className,
+  barColor = '#C4613F', // Terracotta
+  className = '',
 }) {
   return (
-    <div className={cn("w-full flex flex-col justify-end", className)}>
-      <div className="flex items-end justify-between gap-2 h-36 pt-4 pb-2 border-b border-border-subtle">
+    <div className={`w-full flex flex-col justify-end ${className}`}>
+      <div className="flex items-end justify-between gap-2 h-36 pt-4 pb-2 border-b border-[#DDD4C4]">
         {data.map((item, idx) => {
-          const heightPct = item.value === 0 ? 3 : Math.max(6, (item.value / maxVal) * 100);
+          const heightPct = item.value === 0 ? 3 : Math.max(8, (item.value / maxVal) * 100);
           return (
             <div key={idx} className="flex-1 flex flex-col items-center justify-end h-full group">
-              <span className="text-[11px] font-sans text-ink-primary font-medium mb-1 transition-opacity">
+              <span className="text-[11px] font-sans text-[#1E2A26] font-medium mb-1">
                 {item.value}
               </span>
               <div
-                className="w-full max-w-[34px] rounded-t-sm transition-all duration-300"
+                className="w-full max-w-[34px] rounded-t-[2px] transition-all duration-300"
                 style={{
                   height: `${heightPct}%`,
-                  backgroundColor: item.value === 0 ? '#C2BAB0' : barColor,
+                  backgroundColor: item.value === 0 ? '#DDD4C4' : barColor,
                 }}
               />
             </div>
           );
         })}
       </div>
-      <div className="flex justify-between items-center text-[11px] text-ink-muted pt-2">
+      <div className="flex justify-between items-center text-[11px] text-[#6B6A60] pt-2">
         {data.map((item, idx) => (
           <span key={idx} className="flex-1 text-center truncate">
             {item.label}
@@ -48,3 +47,4 @@ export function OvertimeBarChart({
   );
 }
 
+export default OvertimeBarChart;

@@ -1,7 +1,7 @@
 import React from 'react';
 import { BrowserRouter, Routes, Route, Navigate } from 'react-router-dom';
-import { AppProvider } from './context/AppContext';
-import { ModalProvider } from './context/ModalContext';
+import { ToastProvider } from './components/ui/Toast';
+import { ProtectedRoute } from './components/layout/ProtectedRoute';
 import { AppLayout } from './components/layout/AppLayout';
 
 // Pages
@@ -16,41 +16,37 @@ import { AlertsPage } from './pages/AlertsPage';
 import { ReportsPage } from './pages/ReportsPage';
 import { ProjectsPage } from './pages/ProjectsPage';
 import { SettingsPage } from './pages/SettingsPage';
-import { DesignSystemPage } from './pages/DesignSystemPage';
+import { NotFoundPage } from './pages/NotFoundPage';
 
 export function App() {
   return (
-    <AppProvider>
-      <ModalProvider>
-        <BrowserRouter>
-          <Routes>
-            {/* Standalone Login route */}
-            <Route path="/login" element={<LoginPage />} />
+    <ToastProvider>
+      <BrowserRouter>
+        <Routes>
+          {/* Public Login Route */}
+          <Route path="/login" element={<LoginPage />} />
 
-            {/* Application shell layout */}
-            <Route element={<AppLayout />}>
-              <Route path="/" element={<OverviewPage />} />
-              <Route path="/overview" element={<OverviewPage />} />
-              <Route path="/workload" element={<TeamWorkloadPage />} />
-              <Route path="/workload/:id" element={<EmployeeDetailPage />} />
-              <Route path="/rebalancer" element={<TaskRebalancerPage />} />
-              <Route path="/capacity" element={<CapacityPlannerPage />} />
-              <Route path="/burnout" element={<BurnoutRiskPage />} />
-              <Route path="/alerts" element={<AlertsPage />} />
-              <Route path="/reports" element={<ReportsPage />} />
-              <Route path="/projects" element={<ProjectsPage />} />
-              <Route path="/settings" element={<SettingsPage />} />
-              <Route path="/design-system" element={<DesignSystemPage />} />
-            </Route>
+          {/* Protected Application Shell */}
+          <Route element={<ProtectedRoute><AppLayout /></ProtectedRoute>}>
+            <Route path="/" element={<Navigate to="/overview" replace />} />
+            <Route path="/overview" element={<OverviewPage />} />
+            <Route path="/team" element={<TeamWorkloadPage />} />
+            <Route path="/team/:id" element={<EmployeeDetailPage />} />
+            <Route path="/rebalancer" element={<TaskRebalancerPage />} />
+            <Route path="/planner" element={<CapacityPlannerPage />} />
+            <Route path="/burnout" element={<BurnoutRiskPage />} />
+            <Route path="/alerts" element={<AlertsPage />} />
+            <Route path="/reports" element={<ReportsPage />} />
+            <Route path="/projects" element={<ProjectsPage />} />
+            <Route path="/settings" element={<SettingsPage />} />
+          </Route>
 
-            {/* Fallback route */}
-            <Route path="*" element={<Navigate to="/" replace />} />
-          </Routes>
-        </BrowserRouter>
-      </ModalProvider>
-    </AppProvider>
+          {/* 404 Not Found Route */}
+          <Route path="*" element={<NotFoundPage />} />
+        </Routes>
+      </BrowserRouter>
+    </ToastProvider>
   );
 }
 
 export default App;
-

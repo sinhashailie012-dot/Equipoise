@@ -1,229 +1,283 @@
-import React from 'react';
+import React, { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { Calendar, ArrowRight, ArrowUpRight } from 'lucide-react';
-import { MetricCard } from '../components/ui/MetricCard';
-import { StatusBadge } from '../components/ui/StatusBadge';
+import { ArrowRight, ArrowUpRight } from 'lucide-react';
+import { KpiCard } from '../components/ui/KpiCard';
+import { StatusChip } from '../components/ui/StatusChip';
 import { Button } from '../components/ui/Button';
 import { Avatar } from '../components/ui/Avatar';
+import { DatePicker } from '../components/ui/DatePicker';
+import { SkeletonCard } from '../components/ui/Skeleton';
+import { ErrorState } from '../components/ui/ErrorState';
 import { BurnoutGauge } from '../components/charts/BurnoutGauge';
 import { OvertimeBarChart } from '../components/charts/OvertimeBarChart';
-import { useApp } from '../context/AppContext';
-import { heatmapEmployees, weekLabels, getHeatmapColor } from '../data/metrics';
+import { workloadService } from '../services/workloadService';
+import { getHeatmapColor } from '../utils/workload';
 
 export function OverviewPage() {
   const navigate = useNavigate();
-  const { employees } = useApp();
+  const [dateRange, setDateRange] = useState('2–8 Nov 2026');
+  const [data, setData] = useState(null);
+  const [isLoading, setIsLoading] = useState(true);
+  const [error, setError] = useState(null);
 
-  const totalAllocated = employees.reduce((acc, e) => acc + e.allocatedHours, 0);
-  const totalContracted = employees.reduce((acc, e) => acc + e.contractedHours, 0);
-  const teamUtilization = Math.round((totalAllocated / totalContracted) * 100);
+  const loadData = async (range = dateRange) => {
+    try {
+      setIsLoading(true);
+      setError(null);
+      const res = await workloadService.getOverviewData(range);
+      setData(res);
+    } catch (err) {
+      setError(err.message || 'Failed to load team overview data.');
+    } finally {
+      setIsLoading(false);
+    }
+  };
 
-  const atRiskCount = employees.filter(e => e.riskScore >= 60).length;
-  const overdueCount = employees.reduce((acc, e) => acc + e.overdueTasks, 0);
-  const spareCapacityHrs = employees
-    .filter(e => e.allocatedHours < e.contractedHours)
-    .reduce((acc, e) => acc + (e.contractedHours - e.allocatedHours), 0);
+  useEffect(() => {
+    loadData(dateRange);
+  }, [dateRange]);
 
-  // Top 3 at-risk people for "Needs attention"
-  const needsAttentionList = [...employees]
-    .filter(e => e.status !== 'balanced' && e.status !== 'spare')
-    .sort((a, b) => b.riskScore - a.riskScore)
-    .slice(0, 3);
+  if (isLoading) {
+    return (
+      <div className="space-y-6">
+        <div className="h-16 bg-[#E7E1D4]/40 animate-pulse rounded-[4px]" />
+        <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
+          <SkeletonCard />
+          <SkeletonCard />
+          <SkeletonCard />
+          <SkeletonCard />
+        </div>
+        <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
+          <div className="lg:col-span-2 h-72 bg-[#E7E1D4]/40 animate-pulse rounded-[4px]" />
+          <div className="h-72 bg-[#E7E1D4]/40 animate-pulse rounded-[4px]" />
+        </div>
+      </div>
+    );
+  }
+
+  if (error || !data) {
+    return <ErrorState message={error} onRetry={() => loadData(dateRange)} />;
+  }
 
   return (
-    <div className="space-y-6">
+    <div className="space-y-6 select-none">
       {/* Page Header */}
       <div className="flex flex-col md:flex-row md:items-end justify-between gap-4">
         <div>
-          <div className="text-[10px] font-semibold tracking-wider text-ink-muted uppercase mb-1">
+          <div className="text-[10px] font-semibold tracking-wider text-[#6B6A60] uppercase mb-1">
             PEOPLE OPERATIONS / DESIGN TEAM
           </div>
-          <h1 className="text-3xl sm:text-4xl font-serif text-ink-primary font-normal tracking-tight">
+          <h1 className="text-3xl sm:text-4xl font-heading text-[#1E2A26] font-normal tracking-tight">
             A clearer view of your team.
           </h1>
-          <p className="text-xs text-ink-secondary mt-1.5">
+          <p className="text-xs text-[#6B6A60] mt-1.5">
             Thursday, 5 November 2026 · A little attention today can make next week better.
           </p>
         </div>
         <div>
-          <Button variant="secondary" className="gap-2 text-xs">
-            <Calendar className="w-3.5 h-3.5 text-ink-muted" />
-            <span>2–8 Nov 2026</span>
-          </Button>
+          <DatePicker
+            value={dateRange}
+            onChange={(val) => setDateRange(val)}
+          />
         </div>
       </div>
 
-      {/* 4 Metric KPI Cards */}
+      {/* 4 KPI Cards */}
       <div className="grid grid-cols-2 lg:grid-cols-4 gap-3 sm:gap-4">
-        <MetricCard
+        <KpiCard
           title="Team utilization"
-          value={`${teamUtilization}%`}
-          subtext={`${totalAllocated} of ${totalContracted} hrs allocated`}
-          dotColor="#1E2A26"
+          value={data.kpis.teamUtilization.value}
+          note={data.kpis.teamUtilization.note}
+          onClick={() => navigate('/team')}
         />
-        <MetricCard
+        <KpiCard
           title="At-risk employees"
-          value={`${atRiskCount} of 8`}
-          subtext="Risk score above 60"
-          dotColor="#C3542F"
+          value={data.kpis.atRiskEmployees.value}
+          note={data.kpis.atRiskEmployees.note}
+          dotColor="#C4613F"
+          onClick={() => navigate('/burnout')}
         />
-        <MetricCard
+        <KpiCard
           title="Overdue tasks"
-          value={overdueCount}
-          subtext="Across 3 people"
+          value={data.kpis.overdueTasks.value}
+          note={data.kpis.overdueTasks.note}
           dotColor="#D4A537"
+          onClick={() => navigate('/team')}
         />
-        <MetricCard
+        <KpiCard
           title="Spare capacity"
-          value={`${spareCapacityHrs} hrs`}
-          subtext="Available across 4 people"
+          value={data.kpis.spareCapacity.value}
+          note={data.kpis.spareCapacity.note}
           dotColor="#4F7A7F"
+          onClick={() => navigate('/rebalancer')}
         />
       </div>
 
-      {/* Grid: Heatmap + Burnout Risk */}
+      {/* Row 1: Heatmap (2/3) + Burnout Gauge (1/3) */}
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
-        {/* Heatmap (2 cols) */}
-        <div className="lg:col-span-2 bg-card rounded-xl border border-border-subtle p-5">
-          <div className="flex items-center justify-between mb-4">
-            <h2 className="text-lg font-serif text-ink-primary">
-              Workload, at a glance
-            </h2>
-            <span className="text-xs text-ink-muted">8-week view</span>
-          </div>
+        {/* Workload Heatmap */}
+        <div className="lg:col-span-2 bg-[#FBF8F2] border border-[#DDD4C4] rounded-[4px] p-5 shadow-card flex flex-col justify-between">
+          <div>
+            <div className="flex items-center justify-between mb-4">
+              <h2 className="font-heading text-lg font-normal text-[#1E2A26]">
+                Workload, at a glance
+              </h2>
+              <span className="text-xs text-[#6B6A60]">8-week view</span>
+            </div>
 
-          <div className="overflow-x-auto no-scrollbar">
-            <table className="w-full text-xs text-left">
-              <thead>
-                <tr className="border-b border-border-subtle/80 text-[11px] text-ink-muted">
-                  <th className="py-2 pr-3 font-normal">Hours / 40h capacity</th>
-                  {weekLabels.map((wk, i) => (
-                    <th key={i} className="py-2 px-1.5 text-center font-normal whitespace-nowrap">
-                      {wk}
+            <div className="overflow-x-auto no-scrollbar">
+              <table className="w-full text-xs text-[#1E2A26]">
+                <thead>
+                  <tr className="border-b border-[#DDD4C4] text-[#6B6A60] text-[11px]">
+                    <th className="text-left py-2 font-normal pr-4 whitespace-nowrap">
+                      Hours / 40h capacity
                     </th>
-                  ))}
-                </tr>
-              </thead>
-              <tbody className="divide-y divide-border-subtle/40">
-                {heatmapEmployees.map((emp, i) => (
-                  <tr key={i} className="hover:bg-card-subtle/50 transition-colors">
-                    <td className="py-2.5 pr-3 font-medium text-ink-primary whitespace-nowrap">
-                      <button
-                        onClick={() => navigate(`/workload/${emp.name.toLowerCase().replace(' ', '-')}`)}
-                        className="hover:underline text-left"
-                      >
-                        {emp.name}
-                      </button>
-                    </td>
-                    {emp.values.map((val, idx) => (
-                      <td key={idx} className="py-1 px-1 text-center">
-                        <div
-                          className={`w-8 h-7 mx-auto flex items-center justify-center rounded font-sans text-xs ${getHeatmapColor(val)}`}
-                        >
-                          {val}
-                        </div>
-                      </td>
+                    {data.heatmap.weeks.map((week, idx) => (
+                      <th key={idx} className="text-center py-2 px-1 font-normal whitespace-nowrap">
+                        {week}
+                      </th>
                     ))}
                   </tr>
-                ))}
-              </tbody>
-            </table>
+                </thead>
+                <tbody className="divide-y divide-[#DDD4C4]/50">
+                  {data.heatmap.rows.map((row) => (
+                    <tr
+                      key={row.id}
+                      onClick={() => navigate(`/team/${row.id}`)}
+                      className="cursor-pointer hover:bg-[#F4EFE6]/60 transition-colors group"
+                    >
+                      <td className="py-2.5 pr-4 text-xs font-medium text-[#1E2A26] whitespace-nowrap group-hover:text-[#234236] group-hover:underline">
+                        {row.name}
+                      </td>
+                      {row.hours.map((hrs, colIdx) => {
+                        const cellColor = getHeatmapColor(hrs, 40);
+                        return (
+                          <td key={colIdx} className="py-2.5 px-1 text-center">
+                            <span
+                              className="inline-block w-8 py-1 rounded-[2px] font-medium text-[11px]"
+                              style={{
+                                backgroundColor: cellColor.bgColor,
+                                color: cellColor.textColor,
+                              }}
+                            >
+                              {hrs}
+                            </span>
+                          </td>
+                        );
+                      })}
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
           </div>
 
-          {/* Legend */}
-          <div className="flex flex-wrap items-center gap-3 sm:gap-4 mt-5 pt-3 border-t border-border-subtle/60 text-[11px] text-ink-secondary">
+          {/* Heatmap Legend */}
+          <div className="flex flex-wrap items-center gap-3 pt-4 mt-2 border-t border-[#DDD4C4] text-[11px] text-[#6B6A60]">
             <div className="flex items-center gap-1.5">
-              <span className="w-3 h-3 rounded-sm bg-[#DEE8E6]" />
+              <span className="w-2.5 h-2.5 rounded-[1px] bg-[#4F7A7F]" />
               <span>&lt;80%</span>
             </div>
             <div className="flex items-center gap-1.5">
-              <span className="w-3 h-3 rounded-sm bg-[#E6EBDF]" />
+              <span className="w-2.5 h-2.5 rounded-[1px] bg-[#7E9C7A]" />
               <span>80–100%</span>
             </div>
             <div className="flex items-center gap-1.5">
-              <span className="w-3 h-3 rounded-sm bg-[#EFE4C9]" />
+              <span className="w-2.5 h-2.5 rounded-[1px] bg-[#D4A537]" />
               <span>101–110%</span>
             </div>
             <div className="flex items-center gap-1.5">
-              <span className="w-3 h-3 rounded-sm bg-[#F0DED5]" />
+              <span className="w-2.5 h-2.5 rounded-[1px] bg-[#C4613F]" />
               <span>111–125%</span>
             </div>
             <div className="flex items-center gap-1.5">
-              <span className="w-3 h-3 rounded-sm bg-[#EADADF]" />
+              <span className="w-2.5 h-2.5 rounded-[1px] bg-[#7A2E3A]" />
               <span>&gt;125%</span>
             </div>
           </div>
         </div>
 
-        {/* Burnout Risk Card (1 col) */}
-        <div className="bg-card rounded-xl border border-border-subtle p-5 flex flex-col justify-between">
+        {/* Team Burnout Risk Gauge Card */}
+        <div className="bg-[#FBF8F2] border border-[#DDD4C4] rounded-[4px] p-5 shadow-card flex flex-col justify-between">
           <div>
-            <h2 className="text-lg font-serif text-ink-primary mb-4">
+            <h2 className="font-heading text-lg font-normal text-[#1E2A26] mb-2">
               Team burnout risk
             </h2>
-            <BurnoutGauge score={58} />
+            <div className="py-2">
+              <BurnoutGauge
+                score={data.teamBurnoutRisk.score}
+                maxScore={100}
+                label="Elevated"
+                trend={data.teamBurnoutRisk.change}
+              />
+            </div>
+            <p className="text-xs text-[#6B6A60] leading-relaxed mt-4">
+              {data.teamBurnoutRisk.insight}
+            </p>
           </div>
 
-          <div className="space-y-4 mt-4">
-            <p className="text-xs text-ink-secondary leading-relaxed">
-              Sustained overtime is the strongest signal. Start with Marcus and Asha.
-            </p>
+          <div className="pt-4 border-t border-[#DDD4C4] space-y-2">
             <Button
               variant="secondary"
               onClick={() => navigate('/burnout')}
-              className="w-full gap-2 text-xs py-2 bg-card-subtle"
+              className="w-full gap-1.5 text-xs"
+              icon={ArrowUpRight}
+              iconPosition="left"
             >
-              <span>Open risk center</span>
-              <ArrowUpRight className="w-3.5 h-3.5 text-ink-muted" />
+              Open risk center
             </Button>
-            <div className="text-[11px] text-ink-muted text-center pt-1 border-t border-border-subtle/60">
+            <p className="text-[10px] text-[#8D8C82] text-center">
               Work-pattern indicator, not a medical assessment.
-            </div>
+            </p>
           </div>
         </div>
       </div>
 
-      {/* Second Row: Needs attention + Overtime is climbing */}
+      {/* Row 2: Needs attention (1/2) + Overtime climbing (1/2) */}
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
-        {/* Needs attention */}
-        <div className="bg-card rounded-xl border border-border-subtle p-5 flex flex-col justify-between">
+        {/* Needs Attention List */}
+        <div className="bg-[#FBF8F2] border border-[#DDD4C4] rounded-[4px] p-5 shadow-card flex flex-col justify-between">
           <div>
             <div className="flex items-center justify-between mb-4">
-              <h2 className="text-lg font-serif text-ink-primary">
+              <h2 className="font-heading text-lg font-normal text-[#1E2A26]">
                 Needs attention
               </h2>
-              <span className="text-xs text-ink-muted">3 people</span>
+              <span className="text-xs text-[#6B6A60]">
+                {data.needsAttention.length} people
+              </span>
             </div>
 
             <div className="space-y-3">
-              {needsAttentionList.map((emp) => (
+              {data.needsAttention.map((person) => (
                 <div
-                  key={emp.id}
-                  className="flex items-center justify-between p-3 rounded-lg bg-card-subtle border border-border-subtle"
+                  key={person.id}
+                  className="flex items-center justify-between p-3 rounded-[4px] border border-[#DDD4C4] bg-[#FBF8F2] hover:bg-[#F4EFE6]/60 transition-colors"
                 >
                   <div className="flex items-center gap-3">
                     <Avatar
-                      initials={emp.initials}
-                      name={emp.name}
-                      bgColor={emp.avatarBg}
-                      textColor={emp.avatarText}
+                      initials={person.initials}
+                      name={person.name}
+                      size="md"
                     />
                     <div>
-                      <div className="text-sm font-medium text-ink-primary">{emp.name}</div>
-                      <div className="text-xs text-ink-muted">
-                        {emp.allocatedHours} hrs allocated · {emp.overdueTasks} overdue
+                      <div className="text-xs md:text-sm font-medium text-[#1E2A26]">
+                        {person.name}
+                      </div>
+                      <div className="text-[11px] text-[#6B6A60]">
+                        {person.allocated} · {person.overdue}
                       </div>
                     </div>
                   </div>
 
                   <div className="flex items-center gap-3">
-                    <StatusBadge status={emp.status} size="sm" />
+                    <StatusChip status={person.status} size="sm" />
                     <button
-                      onClick={() => navigate(`/workload/${emp.id}`)}
-                      className="text-xs text-ink-primary font-medium hover:underline flex items-center gap-1"
+                      type="button"
+                      onClick={() => navigate(`/team/${person.id}`)}
+                      className="text-xs text-[#1E2A26] font-medium hover:text-[#234236] inline-flex items-center gap-1"
                     >
                       <span>Review</span>
-                      <ArrowRight className="w-3 h-3" />
+                      <ArrowRight className="w-3.5 h-3.5" />
                     </button>
                   </div>
                 </div>
@@ -232,43 +286,45 @@ export function OverviewPage() {
           </div>
         </div>
 
-        {/* Overtime is climbing */}
-        <div className="bg-card rounded-xl border border-border-subtle p-5 flex flex-col justify-between">
+        {/* Overtime is Climbing Chart */}
+        <div className="bg-[#FBF8F2] border border-[#DDD4C4] rounded-[4px] p-5 shadow-card flex flex-col justify-between">
           <div>
             <div className="flex items-center justify-between mb-2">
-              <h2 className="text-lg font-serif text-ink-primary">
+              <h2 className="font-heading text-lg font-normal text-[#1E2A26]">
                 Overtime is climbing
               </h2>
-              <span className="text-xs text-ink-muted">Hours / week</span>
+              <span className="text-xs text-[#6B6A60]">Hours / week</span>
             </div>
-            <OvertimeBarChart />
+            <OvertimeBarChart data={data.overtimeHistory.map(d => ({ label: d.week, value: d.hours }))} />
           </div>
-          <div className="text-xs text-ink-muted mt-3 pt-2 border-t border-border-subtle/60">
+          <p className="text-xs text-[#6B6A60] pt-3 border-t border-[#DDD4C4]">
             24 excess hours this week, concentrated in 3 people.
-          </div>
+          </p>
         </div>
       </div>
 
-      {/* Bottom Action Banner */}
-      <div className="bg-[#E4EDE8] rounded-xl border border-[#C2D9CF] p-5 flex flex-col sm:flex-row sm:items-center justify-between gap-4">
+      {/* Bottom Rebalance Banner */}
+      <div className="bg-[#FBF8F2] border border-[#DDD4C4] rounded-[4px] p-5 shadow-card flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4">
         <div>
-          <h3 className="text-sm font-medium text-brand-900">
-            A small move could make a real difference.
+          <h3 className="font-heading text-base font-normal text-[#1E2A26]">
+            {data.recommendation.title}
           </h3>
-          <p className="text-xs text-brand-800/90 mt-0.5">
-            Move 6 hrs from Asha to Daniel without changing the Atlas deadline.
+          <p className="text-xs text-[#6B6A60] mt-0.5">
+            {data.recommendation.body}
           </p>
         </div>
         <Button
           variant="primary"
-          onClick={() => navigate('/rebalancer')}
-          className="gap-2 text-xs shrink-0 py-2.5"
+          onClick={() => navigate(data.recommendation.actionRoute)}
+          className="gap-2 text-xs shrink-0 w-full sm:w-auto"
+          icon={ArrowRight}
+          iconPosition="left"
         >
-          <span>Review rebalance</span>
-          <ArrowRight className="w-4 h-4" />
+          {data.recommendation.actionLabel}
         </Button>
       </div>
     </div>
   );
 }
 
+export default OverviewPage;

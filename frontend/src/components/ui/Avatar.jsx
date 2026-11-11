@@ -1,14 +1,17 @@
 import React from 'react';
-import { cn } from '../../lib/utils';
+import { getInitials } from '../../utils/workload';
 
 export function Avatar({
+  name = '',
   initials,
-  name,
+  src,
   size = 'md',
   bgColor,
   textColor,
-  className,
+  className = '',
 }) {
+  const displayInitials = initials || getInitials(name);
+
   const sizeClasses = {
     xs: 'w-6 h-6 text-[10px]',
     sm: 'w-7 h-7 text-xs',
@@ -17,26 +20,28 @@ export function Avatar({
     xl: 'w-12 h-12 text-base font-medium',
   };
 
-  const defaultBg = bgColor || '#E6EBDF';
-  const defaultText = textColor || '#2E5E3B';
+  const defaultBg = bgColor || '#EAE4D8';
+  const defaultText = textColor || '#1E2A26';
 
-  const derivedInitials = initials || (name ? name.split(' ').map(n => n[0]).join('').slice(0, 2) : '??');
+  if (src) {
+    return (
+      <img
+        src={src}
+        alt={name}
+        className={`${sizeClasses[size]} rounded-full object-cover border border-[#DDD4C4] ${className}`}
+      />
+    );
+  }
 
   return (
     <div
-      className={cn(
-        "rounded-full flex items-center justify-center font-medium select-none shrink-0 tracking-wider",
-        sizeClasses[size],
-        className
-      )}
-      style={{
-        backgroundColor: defaultBg,
-        color: defaultText,
-      }}
+      style={{ backgroundColor: defaultBg, color: defaultText }}
+      className={`inline-flex items-center justify-center rounded-full font-medium select-none border border-[#DDD4C4] ${sizeClasses[size]} ${className}`}
       title={name}
     >
-      {derivedInitials}
+      {displayInitials}
     </div>
   );
 }
 
+export default Avatar;

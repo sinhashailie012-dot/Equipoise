@@ -1,146 +1,190 @@
 import React, { useState } from 'react';
+import { ArrowRight, Check } from 'lucide-react';
 import { Modal } from '../ui/Modal';
 import { Button } from '../ui/Button';
-import { Select } from '../ui/Select';
-import { Checkbox } from '../ui/Checkbox';
 import { Avatar } from '../ui/Avatar';
-import { useApp } from '../../context/AppContext';
-import { useModals } from '../../context/ModalContext';
-import { ArrowRight } from 'lucide-react';
+import { Checkbox } from '../ui/Checkbox';
+import { useToast } from '../ui/Toast';
+import { workloadService } from '../../services/workloadService';
 
-export function ReassignTaskModal() {
-  const { reassignModalOpen, closeReassignModal, reassignTaskData } = useModals();
-  const { employees, reassignTask } = useApp();
+export function ReassignTaskModal({
+  isOpen,
+  onClose,
+  task = {
+    id: 'task-2',
+    title: 'Research synthesis',
+    project: 'Atlas redesign',
+    hours: 6,
+    due: 'Friday, 6 Nov 2026',
+    assignee: 'Asha Patel',
+    assigneeId: 'asha-patel',
+  },
+  onSuccess,
+}) {
+  const toast = useToast();
+  const [targetEmployeeId, setTargetEmployeeId] = useState('daniel-kim');
+  const [notify, setNotify] = useState(true);
+  const [isSubmitting, setIsSubmitting] = useState(false);
 
-  const [selectedTargetId, setSelectedTargetId] = useState('daniel-kim');
-  const [notifyAssignees, setNotifyAssignees] = useState(true);
+  const candidates = [
+    {
+      id: 'daniel-kim',
+      name: 'Daniel Kim',
+      note: '12 hrs available',
+      matchText: 'Daniel has research synthesis experience and contributes to Atlas.',
+      beforeHrs: 28,
+      afterHrs: 34,
+      beforeUtil: 70,
+      afterUtil: 85,
+    },
+    {
+      id: 'james-okafor',
+      name: 'James Okafor',
+      note: '4 hrs available',
+      matchText: 'James is contributing to Atlas UX research.',
+      beforeHrs: 36,
+      afterHrs: 42,
+      beforeUtil: 90,
+      afterUtil: 105,
+    },
+    {
+      id: 'olivia-brooks',
+      name: 'Olivia Brooks',
+      note: '14 hrs available',
+      matchText: 'Olivia has visual design focus on Beacon.',
+      beforeHrs: 26,
+      afterHrs: 32,
+      beforeUtil: 65,
+      afterUtil: 80,
+    },
+  ];
 
-  if (!reassignTaskData) return null;
+  const selectedCandidate = candidates.find((c) => c.id === targetEmployeeId) || candidates[0];
 
-  const currentAssignee = employees.find(e => e.id === (reassignTaskData.assigneeId || 'asha-patel')) || employees[1];
-  const targetAssignee = employees.find(e => e.id === selectedTargetId) || employees[6];
+  const handleConfirm = async () => {
+    try {
+      setIsSubmitting(true);
+      await workloadService.reassignTask({
+        taskId: task.id,
+        fromEmployeeId: task.assigneeId || 'asha-patel',
+        toEmployeeId: targetEmployeeId,
+        notify,
+      });
 
-  const taskHours = reassignTaskData.hours || 6;
-
-  // Potential hours after reassignment
-  const currentAfterHours = Math.max(0, currentAssignee.allocatedHours - taskHours);
-  const currentAfterPct = Math.round((currentAfterHours / currentAssignee.contractedHours) * 100);
-
-  const targetAfterHours = targetAssignee.allocatedHours + taskHours;
-  const targetAfterPct = Math.round((targetAfterHours / targetAssignee.contractedHours) * 100);
-
-  const handleConfirm = () => {
-    reassignTask(reassignTaskData.id, selectedTargetId);
-    closeReassignModal();
+      toast.success(`Task "${task.title}" reassigned to ${selectedCandidate.name}.`);
+      if (onSuccess) onSuccess();
+      onClose();
+    } catch (err) {
+      toast.error('Failed to reassign task. Please try again.');
+    } finally {
+      setIsSubmitting(false);
+    }
   };
-
-  const candidateOptions = employees
-    .filter(e => e.id !== currentAssignee.id)
-    .map(e => ({
-      value: e.id,
-      label: `${e.name} · ${Math.max(0, e.contractedHours - e.allocatedHours)} hrs available`,
-    }));
 
   return (
     <Modal
-      isOpen={reassignModalOpen}
-      onClose={closeReassignModal}
+      isOpen={isOpen}
+      onClose={onClose}
       title="Reassign task"
       subtitle="A considered change can make space for better work."
-      maxWidth="max-w-lg"
+      maxWidth="max-w-xl"
+      footer={
+        <>
+          <Button variant="secondary" onClick={onClose} disabled={isSubmitting}>
+            Cancel
+          </Button>
+          <Button
+            variant="primary"
+            onClick={handleConfirm}
+            disabled={isSubmitting}
+            icon={ArrowRight}
+            iconPosition="right"
+          >
+            {isSubmitting ? 'Reassigning...' : 'Confirm reassignment'}
+          </Button>
+        </>
+      }
     >
       <div className="space-y-5">
-        {/* Task Info Box */}
-        <div className="p-4 bg-[#F4EFE6] rounded-lg border border-border-subtle">
-          <div className="text-[10px] uppercase font-bold tracking-wider text-ink-muted mb-1">
-            {reassignTaskData.project || 'ATLAS REDESIGN'}
+        {/* Task Summary Box */}
+        <div className="p-4 bg-[#F4EFE6] border border-[#DDD4C4] rounded-[4px]">
+          <div className="text-[10px] uppercase tracking-wider font-semibold text-[#6B6A60] mb-1">
+            {task.project || 'ATLAS REDESIGN'}
           </div>
-          <div className="text-base font-serif text-ink-primary font-medium">
-            {reassignTaskData.title || 'Research synthesis'}
+          <div className="font-heading text-lg font-normal text-[#1E2A26] mb-1">
+            {task.title || 'Research synthesis'}
           </div>
-          <div className="text-xs text-ink-secondary mt-1">
-            {taskHours} estimated hours · Due Friday, {reassignTaskData.due || '6 Nov 2026'}
+          <div className="text-xs text-[#6B6A60]">
+            {task.hours || 6} estimated hours · Due {task.due || 'Friday, 6 Nov 2026'}
           </div>
         </div>
 
-        {/* Currently assigned to */}
+        {/* Currently Assigned To */}
         <div>
-          <label className="block text-xs font-medium text-ink-secondary mb-2">
+          <label className="block text-xs font-medium text-[#6B6A60] mb-2">
             Currently assigned to
           </label>
-          <div className="flex items-center gap-3 p-3 bg-card-subtle rounded-lg border border-border-subtle">
-            <Avatar
-              initials={currentAssignee.initials}
-              name={currentAssignee.name}
-              bgColor={currentAssignee.avatarBg}
-              textColor={currentAssignee.avatarText}
-            />
+          <div className="flex items-center gap-3 p-3 bg-[#FBF8F2] border border-[#DDD4C4] rounded-[4px]">
+            <Avatar initials="AP" name="Asha Patel" size="md" />
             <div>
-              <div className="text-sm font-medium text-ink-primary">{currentAssignee.name}</div>
-              <div className="text-xs text-ink-secondary">
-                {currentAssignee.allocatedHours} / {currentAssignee.contractedHours} hrs · {Math.round((currentAssignee.allocatedHours / currentAssignee.contractedHours) * 100)}% allocated
-              </div>
+              <div className="text-sm font-medium text-[#1E2A26]">Asha Patel</div>
+              <div className="text-xs text-[#6B6A60]">48 / 40 hrs · 120% allocated</div>
             </div>
           </div>
         </div>
 
-        {/* Reassign to */}
+        {/* Reassign To Select */}
         <div>
-          <label className="block text-xs font-medium text-ink-secondary mb-2">
+          <label className="block text-xs font-medium text-[#6B6A60] mb-2">
             Reassign to
           </label>
-          <Select
-            value={selectedTargetId}
-            onChange={setSelectedTargetId}
-            options={candidateOptions}
-            className="w-full py-2.5"
-          />
-          <p className="text-xs text-ink-muted mt-1.5">
-            Daniel has research synthesis experience and contributes to Atlas.
+          <select
+            value={targetEmployeeId}
+            onChange={(e) => setTargetEmployeeId(e.target.value)}
+            className="w-full bg-[#FBF8F2] border border-[#DDD4C4] rounded-[4px] px-3.5 py-2 text-sm text-[#1E2A26] focus:outline-none focus:ring-2 focus:ring-[#B8862F]"
+          >
+            {candidates.map((c) => (
+              <option key={c.id} value={c.id}>
+                {c.name} · {c.note}
+              </option>
+            ))}
+          </select>
+          <p className="mt-1.5 text-xs text-[#6B6A60]">
+            {selectedCandidate.matchText}
           </p>
         </div>
 
-        {/* After this change preview card */}
-        <div className="p-4 bg-[#EFF5F1] rounded-lg border border-[#C2D9CF]">
-          <div className="text-xs font-semibold text-brand-900 mb-2">
+        {/* After This Change Preview Box */}
+        <div className="p-4 bg-[#EAF0E9]/70 border border-[#CCE0CB] rounded-[4px] space-y-2 text-sm">
+          <div className="font-medium text-[#234236] text-xs uppercase tracking-wider mb-2">
             After this change
           </div>
-          <div className="space-y-1.5 text-xs text-ink-primary font-mono">
-            <div className="flex justify-between items-center">
-              <span className="font-sans font-medium">{currentAssignee.name}</span>
-              <span>{currentAssignee.allocatedHours} → {currentAfterHours} hrs · {currentAfterPct}%</span>
-            </div>
-            <div className="flex justify-between items-center">
-              <span className="font-sans font-medium">{targetAssignee.name}</span>
-              <span>{targetAssignee.allocatedHours} → {targetAfterHours} hrs · {targetAfterPct}%</span>
-            </div>
+          <div className="flex items-center justify-between text-xs md:text-sm">
+            <span className="text-[#1E2A26]">Asha Patel</span>
+            <span className="font-semibold text-[#1E2A26]">48 → 42 hrs · 105%</span>
           </div>
-          <div className="text-[11px] text-ink-secondary mt-3 pt-2 border-t border-[#C2D9CF]/60 font-sans">
-            The deadline stays 6 Nov. No changes have been applied yet.
+          <div className="flex items-center justify-between text-xs md:text-sm">
+            <span className="text-[#1E2A26]">{selectedCandidate.name}</span>
+            <span className="font-semibold text-[#1E2A26]">
+              {selectedCandidate.beforeHrs} → {selectedCandidate.afterHrs} hrs · {selectedCandidate.afterUtil}%
+            </span>
           </div>
+          <p className="pt-2 text-xs text-[#6B6A60] border-t border-[#CCE0CB]/60">
+            The deadline stays {task.due || '6 Nov'}. No changes have been applied yet.
+          </p>
         </div>
 
-        {/* Checkbox */}
-        <div>
+        {/* Notify Checkbox */}
+        <div className="pt-1">
           <Checkbox
-            checked={notifyAssignees}
-            onChange={setNotifyAssignees}
-            label={`Notify ${currentAssignee.name.split(' ')[0]} and ${targetAssignee.name.split(' ')[0]} about this change`}
+            checked={notify}
+            onChange={setNotify}
+            label={`Notify Asha and ${selectedCandidate.name.split(' ')[0]} about this change`}
           />
-        </div>
-
-        {/* Actions */}
-        <div className="flex items-center justify-between pt-3 border-t border-border-subtle">
-          <Button variant="secondary" onClick={closeReassignModal}>
-            Cancel
-          </Button>
-          <Button variant="primary" onClick={handleConfirm} className="gap-2">
-            <span>Confirm reassignment</span>
-            <ArrowRight className="w-4 h-4" />
-          </Button>
         </div>
       </div>
     </Modal>
   );
 }
 
+export default ReassignTaskModal;

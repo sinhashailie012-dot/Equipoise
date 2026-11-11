@@ -1,46 +1,40 @@
 import React from 'react';
 import { Check } from 'lucide-react';
-import { cn } from '../../lib/utils';
 
 export function Checkbox({
   checked = false,
   onChange,
   label,
   disabled = false,
-  className,
   id,
+  className = '',
 }) {
-  const inputId = id || (label ? label.toLowerCase().replace(/\s+/g, '-') : undefined);
+  const checkboxId = id || 'checkbox-' + Math.random().toString(36).substr(2, 6);
 
   return (
     <label
-      htmlFor={inputId}
-      className={cn(
-        "inline-flex items-center gap-2 cursor-pointer select-none text-sm text-ink-primary",
-        disabled && "cursor-not-allowed opacity-60",
-        className
-      )}
+      htmlFor={checkboxId}
+      className={`inline-flex items-center gap-2 select-none text-sm text-[#1E2A26] ${
+        disabled ? 'opacity-50 cursor-not-allowed' : 'cursor-pointer'
+      } ${className}`}
     >
       <div className="relative flex items-center justify-center">
         <input
           type="checkbox"
-          id={inputId}
+          id={checkboxId}
           checked={checked}
           disabled={disabled}
           onChange={(e) => onChange && onChange(e.target.checked)}
-          className="sr-only peer"
+          className="sr-only"
         />
         <div
-          className={cn(
-            "w-4 h-4 rounded border transition-all flex items-center justify-center",
+          className={`w-4 h-4 rounded-[2px] border transition-colors flex items-center justify-center ${
             checked
-              ? "bg-brand-800 border-brand-800 text-white"
-              : "bg-[#FBF8F2] border-[#C2BAB0] peer-hover:border-[#8E867B]",
-            "peer-focus-visible:focus-ochre",
-            disabled && "bg-[#F4EFE6] border-[#D5CEC2]"
-          )}
+              ? 'bg-[#234236] border-[#234236] text-white'
+              : 'bg-[#FBF8F2] border-[#DDD4C4] hover:border-[#8D8C82]'
+          } ${disabled ? 'bg-[#F4EFE6] border-[#DDD4C4]' : ''}`}
         >
-          {checked && <Check className="w-3 h-3 stroke-[3]" />}
+          {checked && <Check className="w-3 h-3 stroke-[2.5]" />}
         </div>
       </div>
       {label && <span>{label}</span>}
@@ -48,3 +42,4 @@ export function Checkbox({
   );
 }
 
+export default Checkbox;
