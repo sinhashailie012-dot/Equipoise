@@ -21,6 +21,12 @@ public class EmployeeController {
         return service.getEmployees(params);
     }
 
+    @PostMapping
+    @ResponseStatus(HttpStatus.CREATED)
+    public Map<String, Object> create(@RequestBody Map<String, Object> body) {
+        return service.createEmployee(body);
+    }
+
     @GetMapping("/{id}")
     public Map<String, Object> get(@PathVariable String id) {
         return service.getEmployee(id);
@@ -29,6 +35,11 @@ public class EmployeeController {
     @PutMapping("/{id}")
     public Map<String, Object> update(@PathVariable String id, @RequestBody Map<String, Object> body) {
         return service.updateEmployee(id, body);
+    }
+
+    @DeleteMapping("/{id}")
+    public Map<String, Object> delete(@PathVariable String id) {
+        return service.deleteEmployee(id);
     }
 
     @PostMapping("/{id}/notes")

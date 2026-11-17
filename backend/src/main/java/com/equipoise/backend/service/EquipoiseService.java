@@ -88,6 +88,55 @@ public class EquipoiseService {
         return result;
     }
 
+    public Map<String, Object> createEmployee(Map<String, Object> body) {
+        String name = required(string(body.get("name")), "name");
+        String id = string(body.get("id"));
+        if (id == null || id.isBlank()) {
+            id = name.toLowerCase(Locale.ROOT).replaceAll("[^a-z0-9]+", "-").replaceAll("^-|-$", "");
+            if (id.isBlank()) id = "emp-" + UUID.randomUUID();
+        }
+        if (employees.existsById(id)) {
+            id = id + "-" + UUID.randomUUID().toString().substring(0, 5);
+        }
+        String initials = string(body.get("initials"));
+        if (initials == null || initials.isBlank()) {
+            String[] parts = name.trim().split("\\s+");
+            initials = parts.length >= 2 ? ("" + parts[0].charAt(0) + parts[parts.length - 1].charAt(0)).toUpperCase(Locale.ROOT)
+                    : name.substring(0, Math.min(2, name.length())).toUpperCase(Locale.ROOT);
+        }
+        int contracted = body.containsKey("contractedHours") ? number(body.get("contractedHours"), "contractedHours") : 40;
+        int allocated = body.containsKey("allocatedHours") ? number(body.get("allocatedHours"), "allocatedHours") : 0;
+        Team team = teams.findById("design-team").orElse(null);
+
+        Employee employee = Employee.builder()
+                .id(id)
+                .name(name)
+                .initials(initials)
+                .role(value(string(body.get("role")), "Team Member"))
+                .email(value(string(body.get("email")), id + "@forma.studio"))
+                .department(value(string(body.get("department")), "Design"))
+                .reportsTo(value(string(body.get("reportsTo")), "Emma Chen"))
+                .contractedHours(contracted)
+                .allocatedHours(allocated)
+                .team(team)
+                .project(string(body.get("project")))
+                .weeklyAllocationCsv(value(string(body.get("weeklyAllocationCsv")), "0,0,0,0,0,0,0," + allocated))
+                .overtimeHistoryCsv(value(string(body.get("overtimeHistoryCsv")), "0,0,0,0,0,0,0,0"))
+                .consecutiveLongWeeks(0)
+                .weekendHours(0)
+                .leaveRecoveryDays(7)
+                .build();
+        employee.setStatus(WorkloadLogic.status(WorkloadLogic.utilization(employee.getAllocatedHours(), employee.getContractedHours()), configSettings()));
+        employee.setRiskScore(WorkloadLogic.burnoutScore(employee));
+        return employeeSummary(employees.save(employee));
+    }
+
+    public Map<String, Object> deleteEmployee(String id) {
+        Employee employee = employee(id);
+        employees.delete(employee);
+        return map("success", true, "id", id);
+    }
+
     public Map<String, Object> updateEmployee(String id, Map<String, Object> updates) {
         Employee employee = employee(id);
         int previousUtilization = WorkloadLogic.utilization(employee.getAllocatedHours(), employee.getContractedHours());
@@ -121,7 +170,7 @@ public class EquipoiseService {
         int allocated = people.stream().mapToInt(Employee::getAllocatedHours).sum();
         int capacity = people.stream().mapToInt(Employee::getContractedHours).sum();
         int atRisk = (int) people.stream().filter(person -> person.getRiskScore() >= 60).count();
-        int spare = people.stream().mapToInt(person -> Math.max(0, person.getContractedHours() - person.getAllocatedHours())).sum();
+        int spare = WorkloadLogic.spareCapacity(people);
         int overdue = people.stream().mapToInt(Employee::getOverdueTasks).sum();
         List<String> weeks = List.of("14 Sep", "21 Sep", "28 Sep", "5 Oct", "12 Oct", "19 Oct", "26 Oct", "2 Nov");
         List<Map<String, Object>> heatmap = people.stream().limit(8).map(person -> map(
@@ -133,7 +182,7 @@ public class EquipoiseService {
         return map(
                 "dateRange", dateRange,
                 "kpis", map(
-                        "teamUtilization", map("value", percent(allocated, capacity), "note", allocated + " of " + capacity + " hrs allocated", "fraction", allocated + " / " + capacity),
+                        "teamUtilization", map("value", WorkloadLogic.utilization(allocated, capacity) + "%", "note", allocated + " of " + capacity + " hrs allocated", "fraction", allocated + " / " + capacity),
                         "atRiskEmployees", map("value", atRisk + " of " + people.size(), "note", "Risk score above 60"),
                         "overdueTasks", map("value", Integer.toString(overdue), "note", "Across " + attention.size() + " people"),
                         "spareCapacity", map("value", spare + " hrs", "note", "Available across " + people.stream().filter(p -> p.getAllocatedHours() < p.getContractedHours()).count() + " people")
@@ -235,8 +284,8 @@ public class EquipoiseService {
         int allocation = people.stream().mapToInt(Employee::getAllocatedHours).sum();
         int totalCapacity = people.stream().mapToInt(Employee::getContractedHours).sum();
         return map("kpis", map(
-                        "currentAllocation", map("value", percent(allocation, totalCapacity), "note", "Week of 2 November"),
-                        "nextWeek", map("value", percent(allocation - 10, totalCapacity), "note", (allocation - 10) + " of " + totalCapacity + " hrs committed"),
+                        "currentAllocation", map("value", WorkloadLogic.utilization(allocation, totalCapacity) + "%", "note", "Week of 2 November"),
+                        "nextWeek", map("value", WorkloadLogic.utilization(allocation - 10, totalCapacity) + "%", "note", (allocation - 10) + " of " + totalCapacity + " hrs committed"),
                         "knownLeave", map("value", "32 hrs", "note", "4 days in this horizon"),
                         "capacityIn6Weeks", map("value", Math.max(0, totalCapacity - allocation + 20) + " hrs", "note", "Uncommitted · week of 7 Dec")
                 ),
@@ -254,11 +303,43 @@ public class EquipoiseService {
                 .orElseThrow(() -> new ResourceNotFoundException("Employee not found.")));
         int hours = number(body.get("hours"), "hours");
         if (hours <= 0 || hours > 240) throw new IllegalArgumentException("Leave hours must be between 1 and 240.");
-        Leave leave = leaves.save(Leave.builder().id(UUID.randomUUID().toString()).employee(employee)
+        String leaveId = string(body.get("id"));
+        if (leaveId == null || leaveId.isBlank()) leaveId = "leave-" + UUID.randomUUID();
+        Leave leave = leaves.save(Leave.builder().id(leaveId).employee(employee)
                 .employeeName(employee.getName()).type(required(string(body.get("type")), "type"))
-                .dates(required(string(body.get("dates")), "dates")).hours(hours + " hrs").status("Approved").build());
+                .dates(required(string(body.get("dates")), "dates")).hours(hours + " hrs").status(value(string(body.get("status")), "Approved")).build());
         return map("success", true, "leave", map("id", leave.getId(), "employee", employee.getName(),
+                "employeeId", employee.getId(),
                 "dates", leave.getDates(), "type", leave.getType(), "hours", leave.getHours(), "status", leave.getStatus()));
+    }
+
+    public Map<String, Object> updateLeave(String id, Map<String, Object> body) {
+        Leave leave = leaves.findById(id).orElseThrow(() -> new ResourceNotFoundException("Leave not found."));
+        if (body.containsKey("employee")) {
+            String employeeText = string(body.get("employee"));
+            Employee employee = employees.findById(employeeText).orElseGet(() -> employees.findAll().stream()
+                    .filter(person -> person.getName().equalsIgnoreCase(employeeText)).findFirst()
+                    .orElse(leave.getEmployee()));
+            leave.setEmployee(employee);
+            if (employee != null) leave.setEmployeeName(employee.getName());
+        }
+        if (body.containsKey("type")) leave.setType(string(body.get("type")));
+        if (body.containsKey("dates")) leave.setDates(string(body.get("dates")));
+        if (body.containsKey("status")) leave.setStatus(string(body.get("status")));
+        if (body.containsKey("hours")) {
+            int hours = number(body.get("hours"), "hours");
+            leave.setHours(hours + " hrs");
+        }
+        leaves.save(leave);
+        return map("success", true, "leave", map("id", leave.getId(), "employee", leave.getEmployeeName(),
+                "employeeId", leave.getEmployee() == null ? null : leave.getEmployee().getId(),
+                "dates", leave.getDates(), "type", leave.getType(), "hours", leave.getHours(), "status", leave.getStatus()));
+    }
+
+    public Map<String, Object> deleteLeave(String id) {
+        Leave leave = leaves.findById(id).orElseThrow(() -> new ResourceNotFoundException("Leave not found."));
+        leaves.delete(leave);
+        return map("success", true, "id", id);
     }
 
     public Map<String, Object> addAllocation(Map<String, Object> body) {
@@ -519,7 +600,7 @@ public class EquipoiseService {
         long reportAtRisk = reportPeople.stream().filter(person -> person.getRiskScore() >= 60).count();
         return map("dateRange", rangeLabel,
                 "kpis", map(
-                        "averageUtilization", map("value", percent(averageDemand, capacity), "note", (averageDemand * weeks) + " / " + (capacity * weeks) + " available hours"),
+                        "averageUtilization", map("value", WorkloadLogic.utilization(averageDemand, capacity) + "%", "note", (averageDemand * weeks) + " / " + (capacity * weeks) + " available hours"),
                         "currentOvertime", map("value", "24 hrs", "note", "Unchanged from last week"),
                         "currentAtRisk", map("value", Long.toString(reportAtRisk), "note", "Risk score above 60"),
                         "teamRiskTrend", map("value", "+22 pts", "note", "36 → 58 over eight weeks")
@@ -724,14 +805,16 @@ public class EquipoiseService {
     }
 
     private Map<String, Object> employeeSummary(Employee person) {
+        int util = WorkloadLogic.utilization(person.getAllocatedHours(), person.getContractedHours());
+        int spare = WorkloadLogic.spareCapacity(person.getAllocatedHours(), person.getContractedHours());
         int score = person.getRiskScore() == null ? WorkloadLogic.burnoutScore(person) : person.getRiskScore();
-        StatusBand status = WorkloadLogic.status(
-                WorkloadLogic.utilization(person.getAllocatedHours(), person.getContractedHours()), configSettings());
+        StatusBand status = WorkloadLogic.status(util, configSettings());
         return map("id", person.getId(), "initials", person.getInitials(), "name", person.getName(), "role", person.getRole(),
                 "email", person.getEmail(), "department", person.getDepartment(), "reportsTo", person.getReportsTo(),
                 "allocatedHours", person.getAllocatedHours(), "contractedHours", person.getContractedHours(),
+                "utilization", util, "spareCapacity", spare,
                 "status", status.getKey(),
-                "riskScore", score, "activeTasks", tasks.findByAssigneeId(person.getId()).size(),
+                "riskScore", score, "burnoutScore", score, "activeTasks", tasks.findByAssigneeId(person.getId()).size(),
                 "overdueTasks", person.getOverdueTasks(), "nextDeadline", person.getNextDeadline(),
                 "project", person.getProject());
     }

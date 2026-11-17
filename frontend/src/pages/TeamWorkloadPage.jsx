@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { ArrowLeftRight, SlidersHorizontal, ArrowUpDown } from 'lucide-react';
+import { ArrowLeftRight, SlidersHorizontal, ArrowUpDown, Plus, Edit2 } from 'lucide-react';
 import { Button } from '../components/ui/Button';
 import { SearchInput } from '../components/ui/Input';
 import { StatusChip } from '../components/ui/StatusChip';
@@ -15,6 +15,7 @@ import { ErrorState } from '../components/ui/ErrorState';
 import { useToast } from '../components/ui/Toast';
 import { employeeService } from '../services/employeeService';
 import { getUtilization, getStatusFromThresholds } from '../utils/workload';
+import { EmployeeFormModal } from '../components/modals/EmployeeFormModal';
 
 export function TeamWorkloadPage() {
   const navigate = useNavigate();
@@ -27,6 +28,8 @@ export function TeamWorkloadPage() {
   const [sortOrder, setSortOrder] = useState('highest'); // 'highest', 'lowest', 'name'
   const [showFilterModal, setShowFilterModal] = useState(false);
   const [statusFilter, setStatusFilter] = useState('all');
+  const [isEmployeeModalOpen, setIsEmployeeModalOpen] = useState(false);
+  const [editingEmployee, setEditingEmployee] = useState(null);
 
   const [employees, setEmployees] = useState([]);
   const [isLoading, setIsLoading] = useState(true);
@@ -98,14 +101,27 @@ export function TeamWorkloadPage() {
             8 people · 320 contracted hours · Week of 2 November 2026
           </p>
         </div>
-        <Button
-          variant="primary"
-          onClick={() => navigate('/rebalancer')}
-          className="gap-2 text-xs self-start sm:self-auto"
-          icon={ArrowLeftRight}
-        >
-          Rebalance tasks
-        </Button>
+        <div className="flex items-center gap-2">
+          <Button
+            variant="secondary"
+            onClick={() => {
+              setEditingEmployee(null);
+              setIsEmployeeModalOpen(true);
+            }}
+            className="gap-1.5 text-xs self-start sm:self-auto"
+            icon={Plus}
+          >
+            Add member
+          </Button>
+          <Button
+            variant="primary"
+            onClick={() => navigate('/rebalancer')}
+            className="gap-2 text-xs self-start sm:self-auto"
+            icon={ArrowLeftRight}
+          >
+            Rebalance tasks
+          </Button>
+        </div>
       </div>
 
       {/* Controls Bar: Search, Team Dropdown, Date, Filters */}
@@ -180,6 +196,7 @@ export function TeamWorkloadPage() {
                   <th className="py-3 px-4">TASKS</th>
                   <th className="py-3 px-4">NEXT DEADLINE</th>
                   <th className="py-3 px-4">PROJECT</th>
+                  <th className="py-3 px-4 text-right">ACTION</th>
                 </tr>
               </thead>
               <tbody className="divide-y divide-[#DDD4C4]/50">
@@ -254,6 +271,22 @@ export function TeamWorkloadPage() {
                       {/* Project Cell */}
                       <td className="py-3.5 px-4 whitespace-nowrap text-xs text-[#6B6A60]">
                         {emp.project || 'General'}
+                      </td>
+
+                      {/* Action Cell */}
+                      <td className="py-3.5 px-4 whitespace-nowrap text-xs text-right">
+                        <button
+                          type="button"
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            setEditingEmployee(emp);
+                            setIsEmployeeModalOpen(true);
+                          }}
+                          className="px-2.5 py-1 text-xs font-medium text-[#2D5155] bg-[#E7EFF0] hover:bg-[#D5E3E4] rounded transition-colors inline-flex items-center gap-1"
+                        >
+                          <Edit2 className="w-3 h-3" />
+                          <span>Edit</span>
+                        </button>
                       </td>
                     </tr>
                   );
@@ -345,6 +378,14 @@ export function TeamWorkloadPage() {
           </div>
         </div>
       </Modal>
+
+      {/* Add / Edit Employee Modal */}
+      <EmployeeFormModal
+        isOpen={isEmployeeModalOpen}
+        onClose={() => setIsEmployeeModalOpen(false)}
+        employee={editingEmployee}
+        onSaved={fetchEmployees}
+      />
     </div>
   );
 }

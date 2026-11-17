@@ -11,6 +11,9 @@ import { ErrorState } from '../components/ui/ErrorState';
 import { useToast } from '../components/ui/Toast';
 import { ReassignTaskModal } from '../components/modals/ReassignTaskModal';
 import { ScheduleMeetingModal } from '../components/modals/ScheduleMeetingModal';
+import { EmployeeFormModal } from '../components/modals/EmployeeFormModal';
+import { TaskFormModal } from '../components/modals/TaskFormModal';
+import { LeaveFormModal } from '../components/modals/LeaveFormModal';
 import { employeeService } from '../services/employeeService';
 import { getHeatmapColor } from '../utils/workload';
 
@@ -29,6 +32,13 @@ export function EmployeeDetailPage() {
   const [isAddNoteOpen, setIsAddNoteOpen] = useState(false);
   const [selectedTask, setSelectedTask] = useState(null);
   const [newNoteText, setNewNoteText] = useState('');
+
+  // CRUD Modals
+  const [isEditProfileOpen, setIsEditProfileOpen] = useState(false);
+  const [isTaskModalOpen, setIsTaskModalOpen] = useState(false);
+  const [editingTask, setEditingTask] = useState(null);
+  const [isLeaveModalOpen, setIsLeaveModalOpen] = useState(false);
+  const [editingLeave, setEditingLeave] = useState(null);
 
   const loadEmployee = async () => {
     try {
@@ -109,6 +119,13 @@ export function EmployeeDetailPage() {
 
         {/* Action Buttons */}
         <div className="flex items-center gap-2.5">
+          <Button
+            variant="secondary"
+            onClick={() => setIsEditProfileOpen(true)}
+            className="gap-1.5 text-xs"
+          >
+            Edit profile
+          </Button>
           <Button
             variant="secondary"
             onClick={() => {
@@ -279,9 +296,22 @@ export function EmployeeDetailPage() {
               <h2 className="font-heading text-base font-normal text-[#1E2A26]">
                 Current tasks
               </h2>
-              <span className="text-xs text-[#6B6A60]">
-                {employee.tasks?.length || 7} tasks · {employee.allocatedHours || 48} hrs
-              </span>
+              <div className="flex items-center gap-3">
+                <span className="text-xs text-[#6B6A60]">
+                  {employee.tasks?.length || 0} tasks · {employee.allocatedHours || 40} hrs
+                </span>
+                <button
+                  type="button"
+                  onClick={() => {
+                    setEditingTask(null);
+                    setIsTaskModalOpen(true);
+                  }}
+                  className="px-2 py-1 text-xs font-medium text-[#234236] bg-[#EAF0E9] hover:bg-[#DCE6DA] rounded transition-colors inline-flex items-center gap-1"
+                >
+                  <Plus className="w-3 h-3" />
+                  <span>Add task</span>
+                </button>
+              </div>
             </div>
 
             <div className="overflow-x-auto">
@@ -292,6 +322,7 @@ export function EmployeeDetailPage() {
                     <th className="py-2.5 px-4 font-semibold">HOURS</th>
                     <th className="py-2.5 px-4 font-semibold">DUE</th>
                     <th className="py-2.5 px-4 font-semibold">STATUS</th>
+                    <th className="py-2.5 px-4 font-semibold text-right">ACTION</th>
                   </tr>
                 </thead>
                 <tbody className="divide-y divide-[#DDD4C4]/50">
@@ -331,6 +362,19 @@ export function EmployeeDetailPage() {
                               {task.status}
                             </span>
                           )}
+                        </td>
+                        <td className="py-3 px-4 whitespace-nowrap text-right">
+                          <button
+                            type="button"
+                            onClick={(e) => {
+                              e.stopPropagation();
+                              setEditingTask(task);
+                              setIsTaskModalOpen(true);
+                            }}
+                            className="px-2 py-0.5 text-xs font-medium text-[#2D5155] bg-[#E7EFF0] hover:bg-[#D5E3E4] rounded transition-colors"
+                          >
+                            Edit
+                          </button>
                         </td>
                       </tr>
                     );
@@ -373,25 +417,49 @@ export function EmployeeDetailPage() {
 
           {/* Leave History */}
           <div className="p-5 bg-[#FBF8F2] border border-[#DDD4C4] rounded-[4px] shadow-card space-y-3">
-            <h3 className="font-heading text-base font-normal text-[#1E2A26]">
-              Leave history
-            </h3>
+            <div className="flex items-center justify-between">
+              <h3 className="font-heading text-base font-normal text-[#1E2A26]">
+                Leave history
+              </h3>
+              <button
+                type="button"
+                onClick={() => {
+                  setEditingLeave(null);
+                  setIsLeaveModalOpen(true);
+                }}
+                className="px-2 py-1 text-xs font-medium text-[#234236] bg-[#EAF0E9] hover:bg-[#DCE6DA] rounded transition-colors inline-flex items-center gap-1"
+              >
+                <Plus className="w-3 h-3" />
+                <span>Add leave</span>
+              </button>
+            </div>
 
             <div className="space-y-2.5 text-xs">
-              <div className="flex items-center justify-between pb-2 border-b border-[#DDD4C4]/50">
-                <span className="text-[#1E2A26]">16–17 Nov · Annual leave</span>
-                <span className="text-[#7E9C7A] font-medium">Approved</span>
-              </div>
-              <div className="flex items-center justify-between pb-2 border-b border-[#DDD4C4]/50 text-[#6B6A60]">
-                <span>7 Aug · Annual leave · 1 day</span>
-              </div>
-              <div className="flex items-center justify-between pb-2 border-b border-[#DDD4C4]/50 text-[#6B6A60]">
-                <span>15–19 Jun · Annual leave · 5 days</span>
-              </div>
+              {(employee.leaveHistory && employee.leaveHistory.length > 0) ? (
+                employee.leaveHistory.map((lh, i) => (
+                  <div key={i} className="flex items-center justify-between pb-2 border-b border-[#DDD4C4]/50">
+                    <span className="text-[#1E2A26]">{lh.date} · {lh.type}</span>
+                    <span className="text-[#7E9C7A] font-medium">{lh.status || 'Approved'}</span>
+                  </div>
+                ))
+              ) : (
+                <>
+                  <div className="flex items-center justify-between pb-2 border-b border-[#DDD4C4]/50">
+                    <span className="text-[#1E2A26]">16–17 Nov · Annual leave</span>
+                    <span className="text-[#7E9C7A] font-medium">Approved</span>
+                  </div>
+                  <div className="flex items-center justify-between pb-2 border-b border-[#DDD4C4]/50 text-[#6B6A60]">
+                    <span>7 Aug · Annual leave · 1 day</span>
+                  </div>
+                  <div className="flex items-center justify-between pb-2 border-b border-[#DDD4C4]/50 text-[#6B6A60]">
+                    <span>15–19 Jun · Annual leave · 5 days</span>
+                  </div>
+                </>
+              )}
             </div>
 
             <p className="text-xs text-[#6B6A60] pt-1">
-              90 days since the last full day off
+              {employee.leaveRecoveryDays ? `${employee.leaveRecoveryDays} recovery days available` : '90 days since the last full day off'}
             </p>
           </div>
         </div>
@@ -476,6 +544,34 @@ export function EmployeeDetailPage() {
           />
         </div>
       </Modal>
+
+      {/* Edit Profile Modal */}
+      <EmployeeFormModal
+        isOpen={isEditProfileOpen}
+        onClose={() => setIsEditProfileOpen(false)}
+        employee={employee}
+        onSaved={loadEmployee}
+      />
+
+      {/* Add / Edit Task Modal */}
+      <TaskFormModal
+        isOpen={isTaskModalOpen}
+        onClose={() => setIsTaskModalOpen(false)}
+        task={editingTask}
+        defaultAssigneeId={employee.id}
+        employees={[employee]}
+        onSaved={loadEmployee}
+      />
+
+      {/* Add / Edit Leave Modal */}
+      <LeaveFormModal
+        isOpen={isLeaveModalOpen}
+        onClose={() => setIsLeaveModalOpen(false)}
+        leave={editingLeave}
+        defaultEmployee={employee.name}
+        employees={[employee]}
+        onSaved={loadEmployee}
+      />
     </div>
   );
 }

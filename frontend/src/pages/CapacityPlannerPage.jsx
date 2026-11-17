@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { Plus, ArrowUpRight, Check, Calendar as CalendarIcon } from 'lucide-react';
+import { Plus, ArrowUpRight, Check, Calendar as CalendarIcon, Edit2, Trash2 } from 'lucide-react';
 import { Button } from '../components/ui/Button';
 import { KpiCard } from '../components/ui/KpiCard';
 import { Dropdown } from '../components/ui/Dropdown';
@@ -11,6 +11,7 @@ import { SkeletonCard, SkeletonTable } from '../components/ui/Skeleton';
 import { ErrorState } from '../components/ui/ErrorState';
 import { useToast } from '../components/ui/Toast';
 import { capacityService } from '../services/capacityService';
+import { LeaveFormModal } from '../components/modals/LeaveFormModal';
 
 export function CapacityPlannerPage() {
   const navigate = useNavigate();
@@ -27,6 +28,7 @@ export function CapacityPlannerPage() {
   // Modals state
   const [isAddAllocationOpen, setIsAddAllocationOpen] = useState(false);
   const [isAddLeaveOpen, setIsAddLeaveOpen] = useState(false);
+  const [editingLeave, setEditingLeave] = useState(null);
 
   // New allocation form
   const [allocEmployee, setAllocEmployee] = useState('Asha Patel');
@@ -304,7 +306,10 @@ export function CapacityPlannerPage() {
               <Button
                 variant="secondary"
                 size="sm"
-                onClick={() => setIsAddLeaveOpen(true)}
+                onClick={() => {
+                  setEditingLeave(null);
+                  setIsAddLeaveOpen(true);
+                }}
                 icon={Plus}
               >
                 Add leave
@@ -325,9 +330,38 @@ export function CapacityPlannerPage() {
                       {item.dates} · {item.type} · {item.hours}
                     </div>
                   </div>
-                  <span className="text-xs text-[#7E9C7A] font-medium">
-                    {item.status}
-                  </span>
+                  <div className="flex items-center gap-3">
+                    <span className="text-xs text-[#7E9C7A] font-medium">
+                      {item.status}
+                    </span>
+                    <button
+                      type="button"
+                      onClick={() => {
+                        setEditingLeave(item);
+                        setIsAddLeaveOpen(true);
+                      }}
+                      className="p-1 text-[#6B6A60] hover:text-[#1E2A26] rounded transition-colors"
+                      title="Edit leave"
+                    >
+                      <Edit2 className="w-3.5 h-3.5" />
+                    </button>
+                    <button
+                      type="button"
+                      onClick={async () => {
+                        try {
+                          await capacityService.deleteLeave(item.id);
+                          toast.success('Leave deleted.');
+                          loadData();
+                        } catch (err) {
+                          toast.error('Failed to delete leave.');
+                        }
+                      }}
+                      className="p-1 text-[#6B6A60] hover:text-[#C4613F] rounded transition-colors"
+                      title="Delete leave"
+                    >
+                      <Trash2 className="w-3.5 h-3.5" />
+                    </button>
+                  </div>
                 </div>
               ))}
             </div>
@@ -417,61 +451,17 @@ export function CapacityPlannerPage() {
         </form>
       </Modal>
 
-      {/* Add Leave Modal */}
-      <Modal
+      {/* Add / Edit Leave Modal */}
+      <LeaveFormModal
         isOpen={isAddLeaveOpen}
-        onClose={() => setIsAddLeaveOpen(false)}
-        title="Schedule leave"
-        subtitle="Reduce available working hours for planned time off."
-        footer={
-          <div className="flex gap-2">
-            <Button variant="secondary" onClick={() => setIsAddLeaveOpen(false)}>
-              Cancel
-            </Button>
-            <Button variant="primary" onClick={handleAddLeave}>
-              Schedule leave
-            </Button>
-          </div>
-        }
-      >
-        <form onSubmit={handleAddLeave} className="space-y-3">
-          <div>
-            <label className="block text-xs font-medium text-[#6B6A60] mb-1">Employee</label>
-            <select
-              value={leaveEmployee}
-              onChange={(e) => setLeaveEmployee(e.target.value)}
-              className="w-full bg-[#FBF8F2] border border-[#DDD4C4] rounded-[4px] px-3.5 py-2 text-sm text-[#1E2A26] focus:ring-2 focus:ring-[#B8862F]"
-            >
-              {data.timeline.map((row) => (
-                <option key={row.employeeId} value={row.name}>{row.name}</option>
-              ))}
-            </select>
-          </div>
-          <div>
-            <label className="block text-xs font-medium text-[#6B6A60] mb-1">Leave type</label>
-            <select
-              value={leaveType}
-              onChange={(e) => setLeaveType(e.target.value)}
-              className="w-full bg-[#FBF8F2] border border-[#DDD4C4] rounded-[4px] px-3.5 py-2 text-sm text-[#1E2A26] focus:ring-2 focus:ring-[#B8862F]"
-            >
-              <option value="Annual leave">Annual leave</option>
-              <option value="Sick leave">Sick leave</option>
-              <option value="Parental leave">Parental leave</option>
-              <option value="Personal / study leave">Personal / study leave</option>
-            </select>
-          </div>
-          <div className="grid grid-cols-2 gap-3">
-            <div>
-              <label className="block text-xs font-medium text-[#6B6A60] mb-1">Dates</label>
-              <Input value={leaveDates} onChange={(e) => setLeaveDates(e.target.value)} />
-            </div>
-            <div>
-              <label className="block text-xs font-medium text-[#6B6A60] mb-1">Hours deducted</label>
-              <Input type="number" value={leaveHours} onChange={(e) => setLeaveHours(e.target.value)} />
-            </div>
-          </div>
-        </form>
-      </Modal>
+        onClose={() => {
+          setIsAddLeaveOpen(false);
+          setEditingLeave(null);
+        }}
+        leave={editingLeave}
+        employees={data?.timeline ? data.timeline.map((t) => ({ name: t.name, id: t.employeeId })) : []}
+        onSaved={loadData}
+      />
     </div>
   );
 }

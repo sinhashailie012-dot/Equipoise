@@ -62,6 +62,30 @@ export const capacityService = {
     return { success: true, leave: newLeave };
   },
 
+  async updateLeave(id, leaveData) {
+    if (!USE_MOCK) {
+      const response = await apiClient.put(`/capacity/leave/${id}`, leaveData);
+      return response.data;
+    }
+    await new Promise((res) => setTimeout(res, 200));
+    const idx = upcomingLeaveList.findIndex((l) => l.id === id);
+    if (idx !== -1) {
+      upcomingLeaveList[idx] = { ...upcomingLeaveList[idx], ...leaveData };
+      return { success: true, leave: upcomingLeaveList[idx] };
+    }
+    throw new Error('Leave not found');
+  },
+
+  async deleteLeave(id) {
+    if (!USE_MOCK) {
+      const response = await apiClient.delete(`/capacity/leave/${id}`);
+      return response.data;
+    }
+    await new Promise((res) => setTimeout(res, 200));
+    upcomingLeaveList = upcomingLeaveList.filter((l) => l.id !== id);
+    return { success: true, id };
+  },
+
   async addAllocation(allocationData) {
     if (!USE_MOCK) {
       const response = await apiClient.post('/capacity/allocations', allocationData);

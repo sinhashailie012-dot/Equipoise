@@ -4,11 +4,22 @@ import com.equipoise.backend.entity.Employee;
 import com.equipoise.backend.entity.Settings;
 import com.equipoise.backend.entity.StatusBand;
 
+import java.util.Collection;
+
 public final class WorkloadLogic {
     private WorkloadLogic() {}
 
     public static int utilization(int allocatedHours, int capacityHours) {
         return capacityHours <= 0 ? 0 : (int) Math.round((double) allocatedHours * 100 / capacityHours);
+    }
+
+    public static int spareCapacity(int allocatedHours, int contractedHours) {
+        return Math.max(0, contractedHours - allocatedHours);
+    }
+
+    public static int spareCapacity(Collection<Employee> employees) {
+        if (employees == null) return 0;
+        return employees.stream().mapToInt(p -> spareCapacity(p.getAllocatedHours(), p.getContractedHours())).sum();
     }
 
     public static StatusBand status(int utilization, Settings settings) {
@@ -24,6 +35,7 @@ public final class WorkloadLogic {
     }
 
     public static int burnoutScore(Employee employee) {
+        if (employee == null) return 0;
         int overtime = csvTotal(employee.getOvertimeHistoryCsv());
         int aboveCapacityWeeks = csvLongWeeks(employee.getWeeklyAllocationCsv(), employee.getContractedHours());
         int score = 15 + Math.min(employee.getConsecutiveLongWeeks() * 6, 30)

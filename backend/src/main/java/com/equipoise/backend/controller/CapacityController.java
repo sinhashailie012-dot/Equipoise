@@ -26,6 +26,16 @@ public class CapacityController {
         return service.addLeave(body);
     }
 
+    @PutMapping("/leave/{id}")
+    public Map<String, Object> updateLeave(@PathVariable String id, @RequestBody Map<String, Object> body) {
+        return service.updateLeave(id, body);
+    }
+
+    @DeleteMapping("/leave/{id}")
+    public Map<String, Object> deleteLeave(@PathVariable String id) {
+        return service.deleteLeave(id);
+    }
+
     @PostMapping("/allocations")
     public Map<String, Object> addAllocation(@RequestBody Map<String, Object> body) {
         return service.addAllocation(body);

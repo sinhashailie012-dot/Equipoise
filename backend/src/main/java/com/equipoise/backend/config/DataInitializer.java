@@ -12,7 +12,6 @@ import java.util.ArrayList;
 import java.util.List;
 
 @Configuration
-@Profile("dev")
 public class DataInitializer {
     private record EmployeeSeed(String id, String name, String initials, String role, String department,
                                 int hours, int capacity, int risk, int overdue, String project,

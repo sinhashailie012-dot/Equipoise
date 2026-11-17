@@ -83,6 +83,38 @@ export const employeeService = {
     return { success: true, employeeId, noteText, author };
   },
 
+  async createEmployee(data) {
+    if (!USE_MOCK) {
+      const response = await apiClient.post('/employees', data);
+      return response.data;
+    }
+    await new Promise((res) => setTimeout(res, 200));
+    const newEmp = {
+      id: data.id || data.name.toLowerCase().replace(/[^a-z0-9]+/g, '-'),
+      ...data,
+      allocatedHours: Number(data.allocatedHours || 0),
+      contractedHours: Number(data.contractedHours || 40),
+      status: 'balanced',
+      riskScore: 30,
+      activeTasks: 0,
+      overdueTasks: 0,
+      weeklyAllocation: [0, 0, 0, 0, 0, 0, 0, Number(data.allocatedHours || 0)],
+      overtimeHistory: [0, 0, 0, 0, 0, 0, 0, 0],
+    };
+    employeesState.push(newEmp);
+    return newEmp;
+  },
+
+  async deleteEmployee(employeeId) {
+    if (!USE_MOCK) {
+      const response = await apiClient.delete(`/employees/${employeeId}`);
+      return response.data;
+    }
+    await new Promise((res) => setTimeout(res, 200));
+    employeesState = employeesState.filter((e) => e.id !== employeeId);
+    return { success: true, id: employeeId };
+  },
+
   async updateEmployee(employeeId, data) {
     if (!USE_MOCK) {
       const response = await apiClient.put(`/employees/${employeeId}`, data);
