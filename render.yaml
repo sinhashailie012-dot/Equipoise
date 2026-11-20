@@ -61,5 +61,5 @@ databases:
   - name: equipoise-postgres
     databaseName: equipoisedb
     user: equipoise
-    plan: basic
+    plan: basic-256mb
     postgresMajorVersion: 17
