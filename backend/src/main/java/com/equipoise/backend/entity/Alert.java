@@ -46,5 +46,6 @@ public class Alert {
     private String modalType;  // "schedule-1-1" | "reassign-task"
     private String personId;
     private String taskId;
+    private String ruleKey;
 }
 

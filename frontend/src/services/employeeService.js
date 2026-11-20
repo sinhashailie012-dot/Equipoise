@@ -129,6 +129,30 @@ export const employeeService = {
     }
     throw new Error('Employee not found');
   },
+
+  async importEmployees(file) {
+    if (!USE_MOCK) {
+      const formData = new FormData();
+      formData.append('file', file);
+      const response = await apiClient.post('/employees/import', formData, {
+        headers: { 'Content-Type': 'multipart/form-data' },
+      });
+      return response.data;
+    }
+    await new Promise((res) => setTimeout(res, 300));
+    return { rowsCreated: 1, rowsSkipped: 0, errors: [] };
+  },
+
+  async downloadTemplate() {
+    if (!USE_MOCK) {
+      const response = await apiClient.get('/employees/import/template', {
+        responseType: 'blob',
+      });
+      return response.data;
+    }
+    const sample = 'name,email,role,department,contractedHours,allocatedHours,project\nJane Doe,jane.doe@forma.studio,Product Designer,Design,40,36,Atlas redesign\n';
+    return new Blob([sample], { type: 'text/csv' });
+  },
 };
 
 export default employeeService;

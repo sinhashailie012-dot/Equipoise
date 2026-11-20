@@ -10,4 +10,5 @@ public interface TaskRepository extends JpaRepository<Task, String> {
     List<Task> findByAssigneeId(String employeeId);
     List<Task> findByProjectContainingIgnoreCase(String project);
     long countByProjectEntityIsNotNull();
+    java.util.Optional<Task> findByExternalId(String externalId);
 }

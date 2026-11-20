@@ -51,3 +51,11 @@ jobs:
             ghcr.io/${{ env.REPO_LOWER }}/frontend:latest
             ghcr.io/${{ env.REPO_LOWER }}/frontend:${{ github.sha }}
 
+      - name: Trigger Render Deployment
+        if: env.RENDER_DEPLOY_HOOK_URL != ''
+        env:
+          RENDER_DEPLOY_HOOK_URL: ${{ secrets.RENDER_DEPLOY_HOOK_URL }}
+        run: |
+          echo "Triggering Render deploy hook..."
+          curl -s -f -X POST "$RENDER_DEPLOY_HOOK_URL" || echo "Warning: Deploy hook call failed"
+

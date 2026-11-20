@@ -66,5 +66,14 @@ public class Settings {
 
     @Builder.Default
     private Boolean weekendEmail = false;
+
+    @Builder.Default
+    private Boolean notifyEmail = true;
+
+    @Builder.Default
+    private Boolean notifySlack = true;
+
+    @Builder.Default
+    private String notifySeverities = "critical"; // comma-separated e.g. "critical,needs-attention"
 }
 

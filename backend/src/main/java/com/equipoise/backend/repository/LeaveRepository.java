@@ -8,5 +8,6 @@ import java.util.List;
 @Repository
 public interface LeaveRepository extends JpaRepository<Leave, String> {
     List<Leave> findByEmployeeId(String employeeId);
+    java.util.Optional<Leave> findByExternalId(String externalId);
 }
 

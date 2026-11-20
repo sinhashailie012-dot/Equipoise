@@ -10,6 +10,8 @@ import java.util.List;
 @Repository
 public interface AlertRepository extends JpaRepository<Alert, String> {
     boolean existsByPersonIdAndCategoryAndIsArchivedFalse(String personId, Severity category);
+    boolean existsByPersonIdAndRuleKeyAndIsArchivedFalse(String personId, String ruleKey);
+    List<Alert> findByPersonIdAndRuleKeyAndIsArchivedFalse(String personId, String ruleKey);
     List<Alert> findByIsArchivedFalse();
     List<Alert> findByIsReadFalseAndIsArchivedFalse();
     List<Alert> findByIsArchivedTrue();

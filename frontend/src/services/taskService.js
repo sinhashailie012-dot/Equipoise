@@ -61,6 +61,30 @@ export const taskService = {
     tasksState = tasksState.filter((t) => t.id !== id);
     return { success: true, id };
   },
+
+  async importTasks(file) {
+    if (!USE_MOCK) {
+      const formData = new FormData();
+      formData.append('file', file);
+      const response = await apiClient.post('/tasks/import', formData, {
+        headers: { 'Content-Type': 'multipart/form-data' },
+      });
+      return response.data;
+    }
+    await new Promise((res) => setTimeout(res, 300));
+    return { rowsCreated: 1, rowsSkipped: 0, errors: [] };
+  },
+
+  async downloadTemplate() {
+    if (!USE_MOCK) {
+      const response = await apiClient.get('/tasks/import/template', {
+        responseType: 'blob',
+      });
+      return response.data;
+    }
+    const sample = 'title,employee,project,hours,status,due\nDesign checkout step,Jane Doe,Atlas redesign,8,In progress,2026-11-25\n';
+    return new Blob([sample], { type: 'text/csv' });
+  },
 };
 
 export default taskService;

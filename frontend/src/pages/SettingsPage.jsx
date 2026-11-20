@@ -40,6 +40,14 @@ export function SettingsPage() {
   const [criticalAlerts, setCriticalAlerts] = useState(true);
   const [dailyDigest, setDailyDigest] = useState(true);
   const [weekendEmail, setWeekendEmail] = useState(false);
+  const [notifyEmail, setNotifyEmail] = useState(true);
+  const [notifySlack, setNotifySlack] = useState(true);
+  const [notifySeverities, setNotifySeverities] = useState('critical');
+  const [isTestingNotification, setIsTestingNotification] = useState(false);
+
+  // Integrations
+  const [integrationStatus, setIntegrationStatus] = useState(null);
+  const [isSyncing, setIsSyncing] = useState(false);
 
   // Invite modal
   const [isInviteOpen, setIsInviteOpen] = useState(false);
@@ -77,6 +85,16 @@ export function SettingsPage() {
         setCriticalAlerts(res.notifications.immediateCriticalAlerts !== false);
         setDailyDigest(res.notifications.dailyDigest !== false);
         setWeekendEmail(!!res.notifications.weekendEmail);
+        setNotifyEmail(res.notifications.notifyEmail !== false);
+        setNotifySlack(res.notifications.notifySlack !== false);
+        setNotifySeverities(res.notifications.notifySeverities || 'critical');
+      }
+
+      try {
+        const intStatus = await settingsService.getIntegrationsStatus();
+        setIntegrationStatus(intStatus);
+      } catch {
+        // ignore fallback
       }
     } catch (err) {
       setError(err.message || 'Failed to load settings.');
@@ -119,6 +137,9 @@ export function SettingsPage() {
           immediateCriticalAlerts: criticalAlerts,
           dailyDigest,
           weekendEmail,
+          notifyEmail,
+          notifySlack,
+          notifySeverities,
         },
       });
       toast.success('Settings saved successfully.');
@@ -178,6 +199,7 @@ export function SettingsPage() {
     { id: 'thresholds', label: 'Thresholds' },
     { id: 'roles', label: 'Roles & access' },
     { id: 'notifications', label: 'Notifications' },
+    { id: 'integrations', label: 'Integrations' },
   ];
 
   if (isLoading) {
@@ -555,7 +577,7 @@ export function SettingsPage() {
             </div>
 
             {/* Weekend email notifications */}
-            <div className="flex items-center justify-between">
+            <div className="flex items-center justify-between pb-3 border-b border-[#DDD4C4]">
               <div>
                 <div className="text-xs md:text-sm font-medium text-[#1E2A26]">
                   Weekend email notifications
@@ -578,7 +600,229 @@ export function SettingsPage() {
                 />
               </button>
             </div>
+
+            {/* Notification Channels */}
+            <div className="space-y-3 pb-3 border-b border-[#DDD4C4]">
+              <div className="text-xs md:text-sm font-medium text-[#1E2A26]">
+                Notification Channels
+              </div>
+              <p className="text-[11px] text-[#6B6A60]">
+                Select which platforms receive critical alerts and summaries.
+              </p>
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 pt-1">
+                <label className="flex items-center gap-2.5 p-3 rounded-[4px] border border-[#DDD4C4] bg-[#F4EFE6]/60 cursor-pointer">
+                  <input
+                    type="checkbox"
+                    checked={notifyEmail}
+                    onChange={(e) => setNotifyEmail(e.target.checked)}
+                    className="rounded border-[#DDD4C4] text-[#234236] focus:ring-[#B8862F]"
+                  />
+                  <div>
+                    <span className="text-xs font-medium text-[#1E2A26] block">Email Notifier</span>
+                    <span className="text-[10px] text-[#6B6A60]">SMTP / Spring Mail</span>
+                  </div>
+                </label>
+                <label className="flex items-center gap-2.5 p-3 rounded-[4px] border border-[#DDD4C4] bg-[#F4EFE6]/60 cursor-pointer">
+                  <input
+                    type="checkbox"
+                    checked={notifySlack}
+                    onChange={(e) => setNotifySlack(e.target.checked)}
+                    className="rounded border-[#DDD4C4] text-[#234236] focus:ring-[#B8862F]"
+                  />
+                  <div>
+                    <span className="text-xs font-medium text-[#1E2A26] block">Slack Webhook</span>
+                    <span className="text-[10px] text-[#6B6A60]">Incoming webhook</span>
+                  </div>
+                </label>
+              </div>
+            </div>
+
+            {/* Alert Severities to Dispatch */}
+            <div className="space-y-2 pb-3 border-b border-[#DDD4C4]">
+              <div className="text-xs md:text-sm font-medium text-[#1E2A26]">
+                Triggering Severities
+              </div>
+              <p className="text-[11px] text-[#6B6A60]">
+                Choose which severity levels trigger automated notifications.
+              </p>
+              <div className="flex flex-wrap gap-2 pt-1">
+                {[
+                  { id: 'critical', label: 'Critical' },
+                  { id: 'needs-attention', label: 'Needs Attention' },
+                  { id: 'awareness', label: 'Awareness' },
+                ].map((sev) => {
+                  const currentList = notifySeverities.split(',').map((s) => s.trim().toLowerCase());
+                  const isChecked = currentList.includes(sev.id);
+                  return (
+                    <button
+                      key={sev.id}
+                      type="button"
+                      onClick={() => {
+                        let updated;
+                        if (isChecked) {
+                          updated = currentList.filter((s) => s !== sev.id);
+                        } else {
+                          updated = [...currentList, sev.id];
+                        }
+                        setNotifySeverities(updated.filter(Boolean).join(','));
+                      }}
+                      className={`px-3 py-1.5 text-xs font-medium rounded-[4px] border transition-colors ${
+                        isChecked
+                          ? 'bg-[#234236] text-white border-[#234236]'
+                          : 'bg-[#FBF8F2] text-[#1E2A26] border-[#DDD4C4] hover:bg-[#F2ECE0]'
+                      }`}
+                    >
+                      {sev.label}
+                    </button>
+                  );
+                })}
+              </div>
+            </div>
+
+            {/* Send Test Notification Button */}
+            <div className="flex items-center justify-between pt-2">
+              <div>
+                <div className="text-xs font-medium text-[#1E2A26]">Test Configuration</div>
+                <div className="text-[11px] text-[#6B6A60]">
+                  Send a ping through all enabled channels.
+                </div>
+              </div>
+              <Button
+                variant="secondary"
+                size="sm"
+                loading={isTestingNotification}
+                onClick={async () => {
+                  try {
+                    setIsTestingNotification(true);
+                    const res = await settingsService.sendTestNotification();
+                    toast.success(res.message || 'Test notification sent!');
+                  } catch (err) {
+                    toast.error('Failed to dispatch test notification.');
+                  } finally {
+                    setIsTestingNotification(false);
+                  }
+                }}
+              >
+                Send test notification
+              </Button>
+            </div>
           </div>
+        </div>
+      )}
+
+      {/* Section 5: Integrations */}
+      {(activeTab === 'workspace' || activeTab === 'integrations') && (
+        <div className="bg-[#FBF8F2] border border-[#DDD4C4] rounded-[4px] p-6 shadow-card space-y-6">
+          <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
+            <div>
+              <h2 className="font-heading text-xl font-normal text-[#1E2A26]">
+                Integrations & External Sources
+              </h2>
+              <p className="text-xs text-[#6B6A60] mt-1">
+                Synchronize tasks from Jira Cloud and out-of-office leaves from calendar iCal feeds.
+              </p>
+            </div>
+            <Button
+              variant="primary"
+              size="sm"
+              loading={isSyncing}
+              onClick={async () => {
+                try {
+                  setIsSyncing(true);
+                  const res = await settingsService.syncIntegrations();
+                  setIntegrationStatus(res);
+                  toast.success(
+                    `Sync completed: ${res.tasksImported || 0} tasks imported (${res.tasksUpdated || 0} updated), ${
+                      res.leavesImported || 0
+                    } leaves imported (${res.leavesUpdated || 0} updated).`
+                  );
+                } catch (err) {
+                  toast.error('Sync failed. Please check configuration.');
+                } finally {
+                  setIsSyncing(false);
+                }
+              }}
+            >
+              Sync now
+            </Button>
+          </div>
+
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+            {/* Jira Integration Card */}
+            <div className="p-4 rounded-[4px] border border-[#DDD4C4] bg-[#F4EFE6]/60 space-y-3">
+              <div className="flex items-center justify-between">
+                <span className="text-xs font-semibold text-[#1E2A26] uppercase tracking-wider">
+                  Jira Cloud (TaskSource)
+                </span>
+                <span
+                  className={`text-[10px] font-semibold px-2 py-0.5 rounded-[2px] uppercase ${
+                    integrationStatus?.taskSourceMode === 'real'
+                      ? 'bg-[#EAF0E9] text-[#234236]'
+                      : 'bg-[#F2ECE0] text-[#B8862F] border border-[#DDD4C4]'
+                  }`}
+                >
+                  {integrationStatus?.taskSourceMode === 'real' ? 'Connected' : 'Demo mode'}
+                </span>
+              </div>
+              <p className="text-xs text-[#6B6A60]">
+                Imports sprint issues, estimates, and assignees matched by email address into Equipoise tasks.
+              </p>
+              <div className="text-[11px] text-[#8D8C82] space-y-0.5 pt-1 border-t border-[#DDD4C4]/60">
+                <div>Environment: JIRA_BASE_URL, JIRA_EMAIL, JIRA_API_TOKEN</div>
+                <div>Status: {integrationStatus?.taskSourceMode === 'real' ? 'Live adapter active' : 'Mock adapter providing sample tickets'}</div>
+              </div>
+            </div>
+
+            {/* iCal Leave Integration Card */}
+            <div className="p-4 rounded-[4px] border border-[#DDD4C4] bg-[#F4EFE6]/60 space-y-3">
+              <div className="flex items-center justify-between">
+                <span className="text-xs font-semibold text-[#1E2A26] uppercase tracking-wider">
+                  Calendar Feed (LeaveSource)
+                </span>
+                <span
+                  className={`text-[10px] font-semibold px-2 py-0.5 rounded-[2px] uppercase ${
+                    integrationStatus?.leaveSourceMode === 'real'
+                      ? 'bg-[#EAF0E9] text-[#234236]'
+                      : 'bg-[#F2ECE0] text-[#B8862F] border border-[#DDD4C4]'
+                  }`}
+                >
+                  {integrationStatus?.leaveSourceMode === 'real' ? 'Connected' : 'Demo mode'}
+                </span>
+              </div>
+              <p className="text-xs text-[#6B6A60]">
+                Imports Google Calendar / iCal out-of-office events and vacations into Leave records.
+              </p>
+              <div className="text-[11px] text-[#8D8C82] space-y-0.5 pt-1 border-t border-[#DDD4C4]/60">
+                <div>Environment: ICAL_FEED_URL</div>
+                <div>Status: {integrationStatus?.leaveSourceMode === 'real' ? 'Live adapter active' : 'Mock adapter providing sample calendar events'}</div>
+              </div>
+            </div>
+          </div>
+
+          {/* Sync Stats & Last Sync Info */}
+          <div className="pt-2 border-t border-[#DDD4C4] flex flex-col sm:flex-row sm:items-center justify-between text-xs text-[#6B6A60] gap-2">
+            <div>
+              <span>Last sync: </span>
+              <span className="font-medium text-[#1E2A26]">
+                {integrationStatus?.lastSyncTime
+                  ? new Date(integrationStatus.lastSyncTime).toLocaleString()
+                  : 'Never'}
+              </span>
+            </div>
+            <div className="flex items-center gap-4">
+              <span>Tasks: {integrationStatus?.tasksImported || 0} imported / {integrationStatus?.tasksUpdated || 0} updated</span>
+              <span>Leaves: {integrationStatus?.leavesImported || 0} imported / {integrationStatus?.leavesUpdated || 0} updated</span>
+            </div>
+          </div>
+
+          {integrationStatus?.errors?.length > 0 && (
+            <div className="p-3 bg-rose-50 border border-rose-200 rounded text-xs text-rose-700 space-y-1">
+              <div className="font-semibold">Sync Errors:</div>
+              {integrationStatus.errors.map((err, idx) => (
+                <div key={idx}>• {err}</div>
+              ))}
+            </div>
+          )}
         </div>
       )}
 

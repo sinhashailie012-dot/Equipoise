@@ -33,7 +33,7 @@ public class DataInitializer {
             PasswordEncoder encoder
     ) {
         return args -> {
-            if (users.existsByEmail("manager@equipoise.com")) return;
+            if (users.count() > 0) return;
 
             User manager = users.save(User.builder()
                     .id("emma-chen")

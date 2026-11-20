@@ -6,6 +6,10 @@ spring:
     name: equipoise-backend
   profiles:
     active: dev
+  servlet:
+    multipart:
+      max-file-size: 5MB
+      max-request-size: 5MB
   jpa:
     open-in-view: false
     hibernate:
@@ -15,13 +19,44 @@ spring:
       hibernate:
         format_sql: true
 
+management:
+  endpoints:
+    web:
+      exposure:
+        include: health,info
+  endpoint:
+    health:
+      show-details: when_authorized
+      probes:
+        enabled: true
+
 app:
   jwt:
     secret: ${JWT_SECRET:EquipoiseDevOnlySecretKeyForJwtTokensThatIsLongEnough2026}
     expiration-ms: 86400000 # 24 hours
     refresh-expiration-ms: 604800000 # 7 days
   cors:
-    allowed-origins: "http://localhost:5173,http://127.0.0.1:5173,http://localhost:5174,http://127.0.0.1:5174"
+    allowed-origins: ${CORS_ALLOWED_ORIGINS:http://localhost:5173,http://127.0.0.1:5173,http://localhost:5174,http://127.0.0.1:5174}
+  alerts:
+    cron: ${APP_ALERTS_CRON:0 0 * * * *}
+  notifications:
+    slack-webhook-url: ${SLACK_WEBHOOK_URL:}
+    digest-cron: ${APP_DIGEST_CRON:0 0 9 * * MON}
+    mail:
+      host: ${SMTP_HOST:}
+      port: ${SMTP_PORT:587}
+      username: ${SMTP_USERNAME:}
+      password: ${SMTP_PASSWORD:}
+      from: ${MAIL_FROM:notifications@equipoise.local}
+  integrations:
+    sync-cron: ${APP_INTEGRATIONS_SYNC_CRON:0 */30 * * * *}
+    jira:
+      base-url: ${JIRA_BASE_URL:}
+      email: ${JIRA_EMAIL:}
+      api-token: ${JIRA_API_TOKEN:}
+      jql: ${JIRA_JQL:statusCategory != Done ORDER BY created DESC}
+    ical:
+      feed-url: ${ICAL_FEED_URL:}
 
 ---
 spring:
@@ -29,7 +64,7 @@ spring:
     activate:
       on-profile: dev
   datasource:
-    url: jdbc:h2:mem:equipoisedb;DB_CLOSE_DELAY=-1;DB_CLOSE_ON_EXIT=FALSE
+    url: jdbc:h2:file:./data/equipoise;DB_CLOSE_DELAY=-1;DB_CLOSE_ON_EXIT=FALSE
     driverClassName: org.h2.Driver
     username: sa
     password: ""
@@ -37,6 +72,8 @@ spring:
     console:
       enabled: true
       path: /h2-console
+  flyway:
+    enabled: false
   jpa:
     database-platform: org.hibernate.dialect.H2Dialect
 
@@ -46,11 +83,26 @@ spring:
     activate:
       on-profile: prod
   datasource:
-    url: ${SPRING_DATASOURCE_URL}
-    username: ${SPRING_DATASOURCE_USERNAME}
-    password: ${SPRING_DATASOURCE_PASSWORD}
+    url: ${SPRING_DATASOURCE_URL:jdbc:postgresql://postgres:5432/equipoisedb}
+    username: ${SPRING_DATASOURCE_USERNAME:equipoise}
+    password: ${SPRING_DATASOURCE_PASSWORD:equipoise_secret_password}
+  flyway:
+    enabled: false
+  h2:
+    console:
+      enabled: false
   jpa:
     database-platform: org.hibernate.dialect.PostgreSQLDialect
+
+server:
+  forward-headers-strategy: native
+
+springdoc:
+  api-docs:
+    enabled: false
+  swagger-ui:
+    enabled: false
+
 app:
   jwt:
-    secret: ${JWT_SECRET}
+    secret: ${JWT_SECRET:EquipoiseProductionSecretKeyForJwtTokensThatIsLongEnough2026_SecureKey}

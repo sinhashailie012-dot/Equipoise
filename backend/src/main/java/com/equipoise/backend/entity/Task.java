@@ -41,5 +41,8 @@ public class Task {
     @ManyToOne(fetch = FetchType.LAZY)
     @JoinColumn(name = "suggested_to_id")
     private Employee suggestedTo;
+
+    @Column(name = "external_id")
+    private String externalId;
 }
 

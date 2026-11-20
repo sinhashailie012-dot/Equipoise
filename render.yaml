@@ -1,0 +1,65 @@
+services:
+  # ---------------------------------------------------------------------------
+  # Backend Web Service (Spring Boot 4 / Java 25)
+  # ---------------------------------------------------------------------------
+  - type: web
+    name: equipoise-backend
+    env: docker
+    dockerfilePath: backend/Dockerfile
+    dockerContext: backend
+    plan: starter
+    healthCheckPath: /actuator/health
+    envVars:
+      - key: SPRING_PROFILES_ACTIVE
+        value: prod
+      - key: SPRING_DATASOURCE_URL
+        fromDatabase:
+          name: equipoise-postgres
+          property: connectionString
+      - key: SPRING_DATASOURCE_USERNAME
+        fromDatabase:
+          name: equipoise-postgres
+          property: user
+      - key: SPRING_DATASOURCE_PASSWORD
+        fromDatabase:
+          name: equipoise-postgres
+          property: password
+      - key: JWT_SECRET
+        generateValue: true
+      - key: CORS_ALLOWED_ORIGINS
+        fromService:
+          type: web
+          name: equipoise-frontend
+          property: host
+          format: https://{host}
+      - key: PORT
+        value: 8080
+
+  # ---------------------------------------------------------------------------
+  # Frontend Web Service (React + Vite + Nginx)
+  # ---------------------------------------------------------------------------
+  - type: web
+    name: equipoise-frontend
+    env: docker
+    dockerfilePath: frontend/Dockerfile
+    dockerContext: frontend
+    plan: starter
+    envVars:
+      - key: VITE_API_URL
+        fromService:
+          type: web
+          name: equipoise-backend
+          property: host
+          format: https://{host}/api
+      - key: VITE_USE_MOCK
+        value: "false"
+
+databases:
+  # ---------------------------------------------------------------------------
+  # Managed PostgreSQL Database
+  # ---------------------------------------------------------------------------
+  - name: equipoise-postgres
+    databaseName: equipoisedb
+    user: equipoise
+    plan: basic
+    postgresMajorVersion: 17

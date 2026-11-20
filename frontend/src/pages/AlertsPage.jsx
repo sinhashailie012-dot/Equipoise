@@ -32,6 +32,7 @@ export function AlertsPage() {
   const [alerts, setAlerts] = useState([]);
   const [unreadCount, setUnreadCount] = useState(6);
   const [totalCount, setTotalCount] = useState(6);
+  const [lastChecked, setLastChecked] = useState(null);
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState(null);
 
@@ -57,6 +58,9 @@ export function AlertsPage() {
       setAlerts(res.alerts);
       setUnreadCount(res.unreadCount);
       setTotalCount(res.totalCount);
+      if (res.lastChecked) {
+        setLastChecked(res.lastChecked);
+      }
     } catch (err) {
       setError(err.message || 'Failed to load alerts.');
     } finally {
@@ -260,8 +264,20 @@ export function AlertsPage() {
           <h1 className="text-3xl sm:text-4xl font-heading text-[#1E2A26] font-normal tracking-tight">
             The signals worth your attention.
           </h1>
-          <p className="text-xs text-[#6B6A60] mt-1.5">
-            {unreadCount} unread alerts · Your daily view of pressure, progress, and possibilities.
+          <p className="text-xs text-[#6B6A60] mt-1.5 flex flex-wrap items-center gap-x-2">
+            <span>{unreadCount} unread alerts · Your daily view of pressure, progress, and possibilities.</span>
+            {lastChecked && (
+              <span className="text-[#8C8270] border-l border-[#DDD4C4] pl-2">
+                Last checked: {(() => {
+                  try {
+                    const d = new Date(lastChecked);
+                    return d.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
+                  } catch {
+                    return 'Just now';
+                  }
+                })()}
+              </span>
+            )}
           </p>
         </div>
 

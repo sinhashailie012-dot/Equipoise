@@ -39,6 +39,7 @@ export const alertService = {
       alerts: list,
       unreadCount,
       totalCount: alertsState.filter((a) => !a.isArchived).length,
+      lastChecked: new Date().toISOString(),
     };
   },
 

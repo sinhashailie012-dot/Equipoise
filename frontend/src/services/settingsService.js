@@ -44,6 +44,51 @@ export const settingsService = {
     return JSON.parse(JSON.stringify(settingsState));
   },
 
+  async sendTestNotification() {
+    if (!USE_MOCK) {
+      const response = await apiClient.post('/settings/test-notification');
+      return response.data;
+    }
+    await new Promise((res) => setTimeout(res, 200));
+    return { success: true, message: 'Test notification triggered in mock mode.' };
+  },
+
+  async getIntegrationsStatus() {
+    if (!USE_MOCK) {
+      const response = await apiClient.get('/settings/integrations');
+      return response.data;
+    }
+    await new Promise((res) => setTimeout(res, 200));
+    return {
+      taskSourceMode: 'demo',
+      leaveSourceMode: 'demo',
+      tasksImported: 2,
+      tasksUpdated: 0,
+      leavesImported: 2,
+      leavesUpdated: 0,
+      lastSyncTime: new Date().toISOString(),
+      errors: [],
+    };
+  },
+
+  async syncIntegrations() {
+    if (!USE_MOCK) {
+      const response = await apiClient.post('/settings/integrations/sync');
+      return response.data;
+    }
+    await new Promise((res) => setTimeout(res, 350));
+    return {
+      taskSourceMode: 'demo',
+      leaveSourceMode: 'demo',
+      tasksImported: 2,
+      tasksUpdated: 0,
+      leavesImported: 2,
+      leavesUpdated: 0,
+      lastSyncTime: new Date().toISOString(),
+      errors: [],
+    };
+  },
+
   async inviteMember(memberData) {
     if (!USE_MOCK) {
       const response = await apiClient.post('/settings/members', memberData);

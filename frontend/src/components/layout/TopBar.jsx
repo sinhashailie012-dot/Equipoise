@@ -3,8 +3,19 @@ import { NavLink, useLocation } from 'react-router-dom';
 import { HelpCircle, Bell, Menu } from 'lucide-react';
 import { Avatar } from '../ui/Avatar';
 
-export function TopBar({ onOpenSidebar, unreadAlertsCount = 6 }) {
+export function TopBar({ onOpenSidebar, unreadAlertsCount = 6, lastChecked = null }) {
   const location = useLocation();
+
+  const formatLastChecked = () => {
+    if (!lastChecked) return 'Synced today at 09:41';
+    try {
+      const d = new Date(lastChecked);
+      const timeStr = d.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
+      return `Synced today at ${timeStr}`;
+    } catch {
+      return 'Synced today at 09:41';
+    }
+  };
 
   const getBreadcrumbTitle = () => {
     const path = location.pathname;
@@ -43,7 +54,7 @@ export function TopBar({ onOpenSidebar, unreadAlertsCount = 6 }) {
       {/* Right Actions */}
       <div className="flex items-center gap-3 md:gap-5 text-xs text-[#6B6A60]">
         <div className="hidden sm:inline-flex items-center gap-1.5">
-          <span>Synced today at 09:41</span>
+          <span>{formatLastChecked()}</span>
         </div>
 
         <div className="flex items-center gap-2">

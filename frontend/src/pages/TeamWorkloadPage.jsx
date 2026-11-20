@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { ArrowLeftRight, SlidersHorizontal, ArrowUpDown, Plus, Edit2 } from 'lucide-react';
+import { ArrowLeftRight, SlidersHorizontal, ArrowUpDown, Plus, Edit2, Upload } from 'lucide-react';
 import { Button } from '../components/ui/Button';
 import { SearchInput } from '../components/ui/Input';
 import { StatusChip } from '../components/ui/StatusChip';
@@ -16,6 +16,7 @@ import { useToast } from '../components/ui/Toast';
 import { employeeService } from '../services/employeeService';
 import { getUtilization, getStatusFromThresholds } from '../utils/workload';
 import { EmployeeFormModal } from '../components/modals/EmployeeFormModal';
+import { ImportCsvModal } from '../components/modals/ImportCsvModal';
 
 export function TeamWorkloadPage() {
   const navigate = useNavigate();
@@ -29,6 +30,7 @@ export function TeamWorkloadPage() {
   const [showFilterModal, setShowFilterModal] = useState(false);
   const [statusFilter, setStatusFilter] = useState('all');
   const [isEmployeeModalOpen, setIsEmployeeModalOpen] = useState(false);
+  const [isImportModalOpen, setIsImportModalOpen] = useState(false);
   const [editingEmployee, setEditingEmployee] = useState(null);
 
   const [employees, setEmployees] = useState([]);
@@ -102,6 +104,14 @@ export function TeamWorkloadPage() {
           </p>
         </div>
         <div className="flex items-center gap-2">
+          <Button
+            variant="secondary"
+            onClick={() => setIsImportModalOpen(true)}
+            className="gap-1.5 text-xs self-start sm:self-auto"
+            icon={Upload}
+          >
+            Import CSV
+          </Button>
           <Button
             variant="secondary"
             onClick={() => {
@@ -385,6 +395,13 @@ export function TeamWorkloadPage() {
         onClose={() => setIsEmployeeModalOpen(false)}
         employee={editingEmployee}
         onSaved={fetchEmployees}
+      />
+
+      {/* CSV Import Modal */}
+      <ImportCsvModal
+        isOpen={isImportModalOpen}
+        onClose={() => setIsImportModalOpen(false)}
+        onImportSuccess={fetchEmployees}
       />
     </div>
   );

@@ -26,5 +26,8 @@ public class Leave {
 
     @Builder.Default
     private String status = "Approved";
+
+    @Column(name = "external_id")
+    private String externalId;
 }
 

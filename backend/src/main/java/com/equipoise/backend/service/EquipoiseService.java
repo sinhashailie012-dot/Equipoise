@@ -32,11 +32,13 @@ public class EquipoiseService {
     private final NoteRepository notes;
     private final SettingsRepository settingsRepository;
     private final UserRepository users;
+    private final AlertGenerationService alertGenerationService;
 
     public EquipoiseService(
             EmployeeRepository employees, TeamRepository teams, ProjectRepository projects, TaskRepository tasks,
             LeaveRepository leaves, AlertRepository alerts, AlertRuleRepository rules, CheckInRepository checkIns,
-            NoteRepository notes, SettingsRepository settingsRepository, UserRepository users
+            NoteRepository notes, SettingsRepository settingsRepository, UserRepository users,
+            AlertGenerationService alertGenerationService
     ) {
         this.employees = employees;
         this.teams = teams;
@@ -49,6 +51,7 @@ public class EquipoiseService {
         this.notes = notes;
         this.settingsRepository = settingsRepository;
         this.users = users;
+        this.alertGenerationService = alertGenerationService;
     }
 
     @Transactional(readOnly = true)
@@ -440,8 +443,12 @@ public class EquipoiseService {
                 })
                 .filter(alert -> severity.equals("all") || alert.getCategory().getKey().equalsIgnoreCase(severity))
                 .map(this::alertDto).toList();
-        return map("alerts", filtered, "unreadCount", all.stream().filter(a -> !a.getIsRead() && !a.getIsArchived()).count(),
-                "totalCount", all.stream().filter(a -> !a.getIsArchived()).count());
+        Map<String, Object> response = new HashMap<>();
+        response.put("alerts", filtered);
+        response.put("unreadCount", all.stream().filter(a -> !a.getIsRead() && !a.getIsArchived()).count());
+        response.put("totalCount", all.stream().filter(a -> !a.getIsArchived()).count());
+        response.put("lastChecked", alertGenerationService.getLastChecked().toString());
+        return response;
     }
 
     public Map<String, Object> alertAction(String id, String action, Integer hours) {
@@ -656,7 +663,9 @@ public class EquipoiseService {
                 "riskScores", map("atRiskScore", settings.getAtRiskScore(), "criticalRiskScore", settings.getCriticalRiskScore()),
                 "members", members,
                 "notifications", map("immediateCriticalAlerts", settings.getImmediateCriticalAlerts(),
-                        "dailyDigest", settings.getDailyDigest(), "weekendEmail", settings.getWeekendEmail())
+                        "dailyDigest", settings.getDailyDigest(), "weekendEmail", settings.getWeekendEmail(),
+                        "notifyEmail", settings.getNotifyEmail(), "notifySlack", settings.getNotifySlack(),
+                        "notifySeverities", settings.getNotifySeverities())
         );
     }
 
@@ -674,6 +683,9 @@ public class EquipoiseService {
         if (notifications.containsKey("immediateCriticalAlerts")) settings.setImmediateCriticalAlerts(Boolean.parseBoolean(notifications.get("immediateCriticalAlerts").toString()));
         if (notifications.containsKey("dailyDigest")) settings.setDailyDigest(Boolean.parseBoolean(notifications.get("dailyDigest").toString()));
         if (notifications.containsKey("weekendEmail")) settings.setWeekendEmail(Boolean.parseBoolean(notifications.get("weekendEmail").toString()));
+        if (notifications.containsKey("notifyEmail")) settings.setNotifyEmail(Boolean.parseBoolean(notifications.get("notifyEmail").toString()));
+        if (notifications.containsKey("notifySlack")) settings.setNotifySlack(Boolean.parseBoolean(notifications.get("notifySlack").toString()));
+        if (notifications.containsKey("notifySeverities")) settings.setNotifySeverities(string(notifications.get("notifySeverities")));
         Map<String, Object> risk = nestedMap(body, "riskScores");
         setIfPresent(risk, "atRiskScore", settings::setAtRiskScore);
         setIfPresent(risk, "criticalRiskScore", settings::setCriticalRiskScore);
